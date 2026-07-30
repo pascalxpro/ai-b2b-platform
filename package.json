@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "postinstall": "prisma generate",
-    "start": "prisma migrate deploy || true && npx tsx prisma/seed.ts || true && next start",
+    "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
