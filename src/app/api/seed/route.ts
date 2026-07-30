@@ -82,8 +82,8 @@ export async function POST() {
 
     // 4. Meetings
     const meetingsData = [
-      { title: '日本開發會議', status: 'DONE', date: new Date('2026-07-25T10:00:00Z'), summary: '討論日本機械設備市場進入策略。', actionItems: [{ task: '整理前十大潛在客戶名單', owner: '王小明' }] },
-      { title: 'Q3 季度合同審核', status: 'DONE', date: new Date('2026-07-28T14:00:00Z'), summary: '確認 Q3 開發資源分配。', actionItems: [{ task: '建 JIRA', owner: '系統管理員' }] },
+      { title: '日本開發會議', status: 'COMPLETED', date: new Date('2026-07-25T10:00:00Z'), summary: '討論日本機械設備市場進入策略。', actionItems: [{ task: '整理前十大潛在客戶名單', owner: '王小明' }] },
+      { title: 'Q3 季度合同審核', status: 'COMPLETED', date: new Date('2026-07-28T14:00:00Z'), summary: '確認 Q3 開發資源分配。', actionItems: [{ task: '建 JIRA', owner: '系統管理員' }] },
       { title: '東南亞半導體判斷與分析', status: 'SCHEDULED', date: new Date('2026-07-30T09:00:00Z') },
       { title: '韓國化妝品代工廠溝通', status: 'SCHEDULED', date: new Date() },
     ]
@@ -109,9 +109,9 @@ export async function POST() {
 
     // 5. Knowledge
     const knowledgeData = [
-      { title: '客戶開發流程 SOP', type: 'SOP', content: '1. 確認目標市場 2. 搜索潛在客戶 3. AI 分析 4. 人工審核 5. 聯繫。' },
+      { title: '客戶開發流程 SOP', type: 'DOCUMENT', content: '1. 確認目標市場 2. 搜索潛在客戶 3. AI 分析 4. 人工審核 5. 聯繫。' },
       { title: '產品型錄 2026 Q3', type: 'DOCUMENT', content: '包含最新機械設備規格、技術參數以及價格區間。' },
-      { title: '日本市場分析報告', type: 'REPORT', content: '日本包裝機械市場年成長率 8%，主要客群為食品業。' },
+      { title: '日本市場分析報告', type: 'DOCUMENT', content: '日本包裝機械市場年成長率 8%，主要客群為食品業。' },
       { title: '常見客戶問題 (FAQ)', type: 'FAQ', content: 'Q: 支援多語言嗎？ A: 是，目前支援中英日。' },
       { title: '日本成功案例', type: 'CASE_STUDY', content: '成功協助 Tokyo Packaging 提升 30% 轉換率。' },
       { title: '會議記錄範本', type: 'TEMPLATE', content: '標準會議記錄格式，含出席者、議題、決議事項。' },
@@ -124,11 +124,13 @@ export async function POST() {
       if (!existing) {
         await prisma.knowledgeItem.create({
           data: {
-            ...kData,
+            title: kData.title,
+            type: kData.type,
+            content: kData.content,
             workspace: { connect: { id: workspaceId } },
             createdBy: { connect: { id: users['admin@company.com'].id } },
-            status: 'PUBLISHED',
-            visibility: 'PUBLIC',
+            status: 'ACTIVE',
+            visibility: 'COMPANY',
           } as any
         })
         knowledgeCreated++
