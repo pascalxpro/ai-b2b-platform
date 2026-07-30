@@ -1,0 +1,360 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  min-height: 100%;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.viewToggle {
+  display: flex;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.toggleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggleBtn.active {
+  background: var(--color-surface-raised);
+  color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.createBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px var(--color-primary-glow);
+}
+
+.createBtn:hover {
+  background: var(--color-primary-light);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px var(--color-primary-glow);
+}
+
+.filterBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.statusChips {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.chip {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chip:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.chipActive {
+  background: var(--color-primary-glow);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.filterActions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.searchBox {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 12px;
+  color: var(--color-text-muted);
+}
+
+.searchInput {
+  padding: 8px 12px 8px 36px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  width: 240px;
+  transition: all 0.2s;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-glow);
+}
+
+.filterBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filterBtn:hover {
+  background: var(--color-surface-hover);
+}
+
+.tableContainer {
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  flex: 1;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.table th {
+  padding: var(--space-4);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.table td {
+  padding: var(--space-4);
+  font-size: 0.95rem;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: middle;
+}
+
+.table tbody tr {
+  transition: background-color 0.2s;
+}
+
+.table tbody tr:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.companyName {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.industryTag {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--color-surface-raised);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.scoreCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scoreText {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.scoreBarBg {
+  width: 100px;
+  height: 6px;
+  background: var(--color-surface-raised);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.scoreBarFill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+
+.statusBadge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.statusInfo {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.statusSuccess {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.statusPrimary {
+  background: var(--color-primary-glow);
+  color: var(--color-primary);
+}
+
+.statusDanger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.ownerAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(var(--hue-accent), 100%, 50%, 0.1);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mutedText {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.actionBtn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.actionBtn:hover {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 12px;
+  border: 1px solid var(--color-border-subtle);
+}
+
+.pageInfo {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.pageControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pageBtn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-subtle);
+}
+
+.pageBtn:disabled {
+  color: var(--color-border-subtle);
+  cursor: not-allowed;
+}
+
+.pageActive {
+  background: var(--color-primary-glow) !important;
+  color: var(--color-primary) !important;
+  border-color: var(--color-primary) !important;
+}
+
+.pageEllipsis {
+  color: var(--color-text-muted);
+  padding: 0 4px;
+}

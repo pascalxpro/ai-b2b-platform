@@ -1,0 +1,21 @@
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface-alt) 25%, var(--color-surface-hover) 50%, var(--color-surface-alt) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--color-surface);
+  backdrop-filter: blur(var(--glass-blur-2));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}

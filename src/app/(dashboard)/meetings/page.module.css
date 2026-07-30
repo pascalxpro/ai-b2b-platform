@@ -1,0 +1,276 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: var(--space-6);
+  padding-bottom: var(--space-6);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+  text-shadow: 0 0 20px var(--color-primary-glow);
+}
+
+.addButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px var(--color-primary-glow);
+}
+
+.addButton:hover {
+  background: var(--color-primary-light);
+  transform: translateY(-2px);
+}
+
+.meetingList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 900px;
+}
+
+.meetingCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.meetingCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-border-glow);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+}
+
+.meetingCard.expanded {
+  background: var(--color-surface-raised);
+  border-color: var(--color-primary-glow);
+}
+
+.cardMain {
+  display: flex;
+  padding: var(--space-4) var(--space-5);
+  align-items: center;
+  gap: var(--space-5);
+  cursor: pointer;
+}
+
+.dateBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  padding: var(--space-2) var(--space-4);
+  border-radius: 12px;
+  min-width: 70px;
+}
+
+.dateMonth {
+  font-size: 0.8rem;
+  color: var(--color-primary-light);
+  font-weight: 600;
+}
+
+.dateDay {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+
+.cardCenter {
+  flex: 1;
+}
+
+.meetingTitle {
+  margin: 0 0 var(--space-2) 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.meetingMeta {
+  display: flex;
+  gap: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.metaItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.cardRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.statusBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.statussuccess {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.statusinfo {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.statuswarning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.pulseIndicator {
+  width: 6px;
+  height: 6px;
+  background-color: var(--color-info);
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+.expandButton {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.expandButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text);
+}
+
+.cardDetails {
+  padding: 0 var(--space-5) var(--space-5) var(--space-5);
+  border-top: 1px solid var(--color-border-subtle);
+  margin-top: var(--space-2);
+  padding-top: var(--space-4);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.detailSection {
+  margin-bottom: var(--space-4);
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.iconPrimary { color: var(--color-primary); }
+.iconSuccess { color: var(--color-success); }
+.iconWarning { color: var(--color-warning); }
+
+.summaryText {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.bulletList {
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.actionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.actionItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.actionTask {
+  color: var(--color-text);
+}
+
+.actionAssignee {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  color: var(--color-text-muted);
+}
+
+.emptyText {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}

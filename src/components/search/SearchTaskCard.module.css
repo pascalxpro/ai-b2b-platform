@@ -1,0 +1,189 @@
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(12px); /* glass-2 effect */
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-primary-glow);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 auto;
+}
+
+.statusIndicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Status colors */
+.status_QUEUED .dot { background: var(--color-warning); }
+.status_QUEUED .badge { color: var(--color-warning); background: var(--color-warning-bg, rgba(250, 173, 20, 0.1)); }
+
+.status_RUNNING .dot { background: var(--color-info); animation: pulse 1.5s infinite; }
+.status_RUNNING .badge { color: var(--color-info); background: var(--color-info-bg, rgba(24, 144, 255, 0.1)); }
+
+.status_COMPLETED .dot { background: var(--color-success); }
+.status_COMPLETED .badge { color: var(--color-success); background: var(--color-success-bg, rgba(82, 196, 26, 0.1)); }
+
+.status_FAILED .dot { background: var(--color-danger); }
+.status_FAILED .badge { color: var(--color-danger); background: var(--color-danger-bg, rgba(245, 34, 45, 0.1)); }
+
+.status_CANCELLED .dot { background: var(--color-text-muted); }
+.status_CANCELLED .badge { color: var(--color-text-muted); background: var(--color-surface-hover); }
+
+.center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summary {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.time {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex: 0 0 auto;
+}
+
+.progressContainer {
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.progressTrack {
+  height: 6px;
+  background: var(--color-surface-alt);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.resultCount {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.countNumber {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.countLabel {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.actionBtn {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md, 8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.actionBtn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-primary);
+  border-color: var(--color-primary-subtle);
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(24, 144, 255, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(24, 144, 255, 0); }
+}
+
+@media (max-width: 768px) {
+  .card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .right {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

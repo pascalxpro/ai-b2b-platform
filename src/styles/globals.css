@@ -1,0 +1,277 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap');
+@import './tokens.css';
+
+/* ==========================================================================
+   CSS Reset & Base
+   ========================================================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-family-base);
+  font-size: 16px;
+  line-height: var(--lh-normal);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  
+  /* Premium multi-stop gradient background */
+  background:
+    radial-gradient(
+      ellipse at 20% 50%,
+      hsla(var(--hue-primary), 60%, 15%, 0.4) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 80% 20%,
+      hsla(var(--hue-accent), 50%, 20%, 0.25) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 50% 100%,
+      hsla(calc(var(--hue-primary) + 30), 40%, 12%, 0.3) 0%,
+      transparent 50%
+    ),
+    linear-gradient(
+      160deg,
+      var(--color-bg-start) 0%,
+      var(--color-bg-mid) 40%,
+      var(--color-bg-end) 100%
+    );
+  background-attachment: fixed;
+}
+
+/* Subtle noise texture overlay for depth */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.01em;
+}
+
+a { color: inherit; text-decoration: none; }
+ul, ol { list-style: none; }
+button, input, select, textarea { font-family: inherit; }
+
+img { max-width: 100%; height: auto; }
+
+/* ==========================================================================
+   Scrollbar
+   ========================================================================== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background-color: hsla(var(--hue-primary), 20%, 50%, 0.3);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: hsla(var(--hue-primary), 30%, 50%, 0.5);
+}
+* { scrollbar-width: thin; scrollbar-color: hsla(var(--hue-primary), 20%, 50%, 0.3) transparent; }
+
+/* ==========================================================================
+   Selection & Focus
+   ========================================================================== */
+::selection {
+  background-color: hsla(var(--hue-primary), 70%, 55%, 0.35);
+  color: var(--color-text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   Animations
+   ========================================================================== */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-primary-glow); }
+  50% { box-shadow: 0 0 20px 5px var(--color-primary-glow); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes borderGlow {
+  0%, 100% { border-color: var(--color-border); }
+  50% { border-color: var(--color-border-glow); }
+}
+
+/* ==========================================================================
+   Glass Utility Classes - Premium Quality
+   ========================================================================== */
+
+/* Level 1: Subtle glass */
+.glass-1 {
+  background: var(--color-surface-alt);
+  backdrop-filter: blur(var(--glass-blur-1));
+  -webkit-backdrop-filter: blur(var(--glass-blur-1));
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Level 2: Cards */
+.glass-2 {
+  background: var(--color-surface);
+  backdrop-filter: blur(var(--glass-blur-2));
+  -webkit-backdrop-filter: blur(var(--glass-blur-2));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
+}
+
+.glass-2:hover {
+  border-color: var(--color-border-glow);
+}
+
+/* Level 3: Structural */
+.glass-3 {
+  background: var(--color-surface);
+  backdrop-filter: blur(var(--glass-blur-3));
+  -webkit-backdrop-filter: blur(var(--glass-blur-3));
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Level 4: Solid/Modal */
+.glass-solid {
+  background: var(--color-surface-raised);
+  backdrop-filter: blur(var(--glass-blur-solid));
+  -webkit-backdrop-filter: blur(var(--glass-blur-solid));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--color-border-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Glow effects */
+.glow { box-shadow: var(--shadow-glow); }
+.glow-lg { box-shadow: var(--shadow-glow-lg); }
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ==========================================================================
+   Responsive Overrides
+   ========================================================================== */
+
+/* Hide sidebar on mobile, show mobile topbar logo */
+@media (max-width: 768px) {
+  .layout-root {
+    flex-direction: column !important;
+  }
+  
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: var(--radius-full);
+  }
+}
+
+/* Smooth scrolling - handled via Next.js data-scroll-behavior */
+
+/* Focus visible for accessibility */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: var(--color-primary-light);
+  color: var(--color-text);
+}
+
+/* Print styles */
+@media print {
+  .glass-1, .glass-2, .glass-3 {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: white;
+    border-color: #ddd;
+  }
+}
+
+/* Mobile responsive grid overrides */
+@media (max-width: 768px) {
+  main {
+    padding: 12px !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  /* Force single column on tablets for any 3-column grids */
+}
+
+/* Scroll reveal animations */
+.reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }

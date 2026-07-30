@@ -1,0 +1,556 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum WorkspaceType {
+  DEPARTMENT
+  PROJECT
+  SYSTEM
+}
+
+enum WorkspaceStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum WorkspaceRole {
+  MEMBER
+  MANAGER
+  ADMIN
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BusinessEntityStatus {
+  NEW
+  AI_REVIEWED
+  PENDING_REVIEW
+  VALID
+  INVALID
+  ARCHIVED
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  EXPIRED
+}
+
+enum CanonicalCompanyStatus {
+  ACTIVE
+  MERGED
+  ARCHIVED
+}
+
+enum SearchTaskStatus {
+  DRAFT
+  PENDING_APPROVAL
+  QUEUED
+  RUNNING
+  PARTIALLY_COMPLETED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum QualityStatus {
+  NEW
+  VALID
+  PENDING_REVIEW
+  DUPLICATE
+  INVALID
+}
+
+enum ConversionStatus {
+  NONE
+  FAVORITED
+  ASSIGNED
+  CONVERTED_LEAD
+  CONVERTED_OPPORTUNITY
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  RECORDING
+  PROCESSING
+  COMPLETED
+}
+
+enum KnowledgeItemType {
+  DOCUMENT
+  PRODUCT
+  FAQ
+  CASE_STUDY
+  TEMPLATE
+}
+
+enum KnowledgeVisibility {
+  WORKSPACE
+  COMPANY
+  PRIVATE
+}
+
+enum KnowledgeStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model User {
+  id             String     @id @default(uuid())
+  name           String
+  email          String     @unique
+  passwordHash   String?    @map("password_hash")
+  avatarUrl      String?    @map("avatar_url")
+  status         UserStatus
+  locale         String     @default("zh-TW")
+  theme          String     @default("light")
+  paletteId      String     @default("amethyst") @map("palette_id")
+  telegramUserId String?    @unique @map("telegram_user_id")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  workspaceMembers   WorkspaceMember[]
+  createdSearchTasks SearchTask[]
+  tasksAssigned      Task[]
+  meetingsCreated    Meeting[]
+  knowledgeCreated   KnowledgeItem[]
+  approvalsRequested Approval[] @relation("ApprovalsRequested")
+  approvalsHandled   Approval[] @relation("ApprovalsHandled")
+  savedSearches      SavedSearch[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id             String          @id @default(uuid())
+  name           String
+  type           WorkspaceType
+  status         WorkspaceStatus @default(ACTIVE)
+  sortOrder      Int             @default(0) @map("sort_order")
+  telegramChatId String?         @map("telegram_chat_id")
+  description    String?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  members        WorkspaceMember[]
+  entities       BusinessEntity[]
+  searchTasks    SearchTask[]
+  searchResults  SearchResult[]
+  savedSearches  SavedSearch[]
+  tasks          Task[]
+  meetings       Meeting[]
+  knowledgeItems KnowledgeItem[]
+  conversations  Conversation[]
+  approvals      Approval[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(uuid())
+  workspaceId String        @map("workspace_id")
+  userId      String        @map("user_id")
+  role        WorkspaceRole
+  status      MemberStatus  @default(ACTIVE)
+  joinedAt    DateTime      @default(now()) @map("joined_at")
+
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+model BusinessEntity {
+  id          String               @id @default(uuid())
+  workspaceId String               @map("workspace_id")
+  name        String
+  country     String?
+  city        String?
+  industry    String?
+  companyType String?              @map("company_type")
+  website     String?
+  email       String?
+  phone       String?
+  linkedIn    String?              @map("linked_in")
+  status      BusinessEntityStatus @default(NEW)
+  ownerUserId String?              @map("owner_user_id")
+  notes       String?              @db.Text
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  leadScore   LeadScore?
+  evidences   Evidence[]
+
+  @@index([workspaceId])
+  @@map("business_entities")
+}
+
+model LeadScore {
+  id            String   @id @default(uuid())
+  entityId      String   @unique @map("entity_id")
+  fit           Int      @default(0) // 0-100
+  intent        Int      @default(0) // 0-100
+  contactability Int     @default(0) // 0-100
+  value         Int      @default(0) // 0-100
+  risk          Int      @default(0) // 0-100
+  confidence    Int      @default(0) // 0-100
+  scoreReason   Json?    @map("score_reason")
+  version       Int      @default(1)
+  calculatedAt  DateTime @default(now()) @map("calculated_at")
+
+  entity        BusinessEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@map("lead_scores")
+}
+
+model Evidence {
+  id                 String             @id @default(uuid())
+  entityId           String             @map("entity_id")
+  sourceUrl          String             @map("source_url")
+  sourceType         String             @map("source_type")
+  title              String?
+  content            String?            @db.Text
+  capturedAt         DateTime           @default(now()) @map("captured_at")
+  verifiedAt         DateTime?          @map("verified_at")
+  confidence         Int                @default(0) // 0-100
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+
+  entity             BusinessEntity     @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([entityId])
+  @@map("evidences")
+}
+
+model CanonicalCompany {
+  id               String                 @id @default(uuid())
+  name             String
+  aliases          String[]
+  country          String?
+  domain           String?
+  industry         String?
+  companyType      String?                @map("company_type")
+  status           CanonicalCompanyStatus @default(ACTIVE)
+  mergedIntoId     String?                @map("merged_into_id")
+  firstFoundAt     DateTime               @default(now()) @map("first_found_at")
+  lastSeenAt       DateTime               @default(now()) @map("last_seen_at")
+  lastVerifiedAt   DateTime?              @map("last_verified_at")
+  sourceCount      Int                    @default(0) @map("source_count")
+  confidenceScore  Int                    @default(0) @map("confidence_score")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  mergedInto       CanonicalCompany?      @relation("MergedCompany", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom       CanonicalCompany[]     @relation("MergedCompany")
+  searchResults    SearchResult[]
+
+  @@map("canonical_companies")
+}
+
+model RawSearchRecord {
+  id                 String   @id @default(uuid())
+  searchTaskId       String?  @map("search_task_id")
+  canonicalCompanyId String?  @map("canonical_company_id")
+  provider           String
+  queryConditions    Json     @map("query_conditions")
+  rawResponse        Json     @map("raw_response")
+  capturedAt         DateTime @default(now()) @map("captured_at")
+  providerResponseId String?  @map("provider_response_id")
+
+  @@index([searchTaskId])
+  @@map("raw_search_records")
+}
+
+model SearchTask {
+  id             String           @id @default(uuid())
+  workspaceId    String           @map("workspace_id")
+  createdById    String           @map("created_by_id")
+  name           String
+  status         SearchTaskStatus @default(DRAFT)
+  queryText      String?          @map("query_text")
+  criteriaJson   Json?            @map("criteria_json")
+  planJson       Json?            @map("plan_json")
+  targetCount    Int?             @map("target_count")
+  costLimit      Decimal?         @map("cost_limit")
+  estimatedCost  Decimal?         @map("estimated_cost")
+  actualCost     Decimal?         @map("actual_cost")
+  scheduledRule  String?          @map("scheduled_rule")
+  priority       Int              @default(0)
+  startedAt      DateTime?        @map("started_at")
+  completedAt    DateTime?        @map("completed_at")
+  errorMessage   String?          @map("error_message")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy      User             @relation(fields: [createdById], references: [id])
+  searchResults  SearchResult[]
+
+  @@index([workspaceId])
+  @@map("search_tasks")
+}
+
+model SearchResult {
+  id                 String           @id @default(uuid())
+  searchTaskId       String           @map("search_task_id")
+  workspaceId        String           @map("workspace_id")
+  canonicalCompanyId String?          @map("canonical_company_id")
+  companyName        String           @map("company_name")
+  country            String?
+  website            String?
+  sourceCount        Int              @default(0) @map("source_count")
+  scoreJson          Json?            @map("score_json")
+  qualityStatus      QualityStatus    @default(NEW) @map("quality_status")
+  duplicateKey       String?          @map("duplicate_key")
+  conversionStatus   ConversionStatus @default(NONE) @map("conversion_status")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  searchTask         SearchTask       @relation(fields: [searchTaskId], references: [id], onDelete: Cascade)
+  workspace          Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  canonicalCompany   CanonicalCompany? @relation(fields: [canonicalCompanyId], references: [id], onDelete: SetNull)
+  sources            SearchSource[]
+
+  @@index([searchTaskId])
+  @@index([workspaceId])
+  @@map("search_results")
+}
+
+model SearchSource {
+  id                 String             @id @default(uuid())
+  searchResultId     String             @map("search_result_id")
+  provider           String
+  sourceUrl          String             @map("source_url")
+  sourceType         String             @map("source_type")
+  capturedAt         DateTime           @default(now()) @map("captured_at")
+  contentHash        String?            @map("content_hash")
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  confidence         Int?               // 0-100
+  rawContent         String?            @db.Text @map("raw_content")
+
+  searchResult       SearchResult       @relation(fields: [searchResultId], references: [id], onDelete: Cascade)
+
+  @@index([searchResultId])
+  @@map("search_sources")
+}
+
+model SavedSearch {
+  id             String    @id @default(uuid())
+  workspaceId    String    @map("workspace_id")
+  ownerUserId    String    @map("owner_user_id")
+  name           String
+  criteriaJson   Json      @map("criteria_json")
+  scheduleRule   String?   @map("schedule_rule")
+  notifyChannel  String?   @map("notify_channel")
+  isActive       Boolean   @default(true) @map("is_active")
+  lastRunAt      DateTime? @map("last_run_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  ownerUser      User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("saved_searches")
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  workspaceId String       @map("workspace_id")
+  title       String
+  description String?      @db.Text
+  assigneeId  String?      @map("assignee_id")
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(TODO)
+  dueAt       DateTime?    @map("due_at")
+  sourceType  String?      @map("source_type")
+  sourceId    String?      @map("source_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignee    User?        @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@map("tasks")
+}
+
+model Meeting {
+  id          String        @id @default(uuid())
+  workspaceId String        @map("workspace_id")
+  title       String
+  date        DateTime
+  audioUrl    String?       @map("audio_url")
+  transcript  String?       @db.Text
+  summary     String?       @db.Text
+  decisions   String?       @db.Text
+  actionItems Json?         @map("action_items")
+  status      MeetingStatus @default(SCHEDULED)
+  createdById String        @map("created_by_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User          @relation(fields: [createdById], references: [id])
+
+  @@index([workspaceId])
+  @@map("meetings")
+}
+
+model KnowledgeItem {
+  id          String              @id @default(uuid())
+  workspaceId String              @map("workspace_id")
+  title       String
+  type        KnowledgeItemType
+  content     String              @db.Text
+  source      String?
+  version     Int                 @default(1)
+  visibility  KnowledgeVisibility @default(WORKSPACE)
+  status      KnowledgeStatus     @default(DRAFT)
+  createdById String              @map("created_by_id")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User                @relation(fields: [createdById], references: [id])
+
+  @@index([workspaceId])
+  @@map("knowledge_items")
+}
+
+model Conversation {
+  id          String             @id @default(uuid())
+  workspaceId String             @map("workspace_id")
+  channel     String             @default("web")
+  threadId    String?            @map("thread_id")
+  userId      String             @map("user_id")
+  status      ConversationStatus @default(ACTIVE)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages    Message[]
+
+  @@index([workspaceId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String       @map("conversation_id")
+  role           MessageRole
+  content        String       @db.Text
+  citations      Json?
+  toolRuns       Json?        @map("tool_runs")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+model Approval {
+  id          String         @id @default(uuid())
+  workspaceId String         @map("workspace_id")
+  actionType  String         @map("action_type")
+  payload     Json
+  requesterId String         @map("requester_id")
+  approverId  String?        @map("approver_id")
+  status      ApprovalStatus @default(PENDING)
+  reason      String?        @db.Text
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requester   User           @relation("ApprovalsRequested", fields: [requesterId], references: [id])
+  approver    User?          @relation("ApprovalsHandled", fields: [approverId], references: [id])
+
+  @@index([workspaceId])
+  @@map("approvals")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorId     String?  @map("actor_id")
+  workspaceId String?  @map("workspace_id")
+  action      String
+  targetType  String   @map("target_type")
+  targetId    String?  @map("target_id")
+  metadata    Json?
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model CostLedger {
+  id           String   @id @default(uuid())
+  workspaceId  String?  @map("workspace_id")
+  userId       String?  @map("user_id")
+  searchTaskId String?  @map("search_task_id")
+  provider     String
+  action       String
+  amount       Decimal
+  currency     String   @default("USD")
+  details      Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId])
+  @@map("cost_ledgers")
+}

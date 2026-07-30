@@ -1,0 +1,310 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  animation: fadeIn 0.5s ease-out;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.headerIcon {
+  color: var(--color-primary);
+  width: 32px;
+  height: 32px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+}
+
+.insights {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+.insightCard {
+  padding: var(--space-4);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  border-top: 3px solid transparent;
+}
+
+.insightOpportunity {
+  border-top-color: var(--color-success);
+}
+
+.insightRisk {
+  border-top-color: var(--color-warning);
+}
+
+.insightStrategy {
+  border-top-color: var(--color-info);
+}
+
+.insightHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.insightTitle {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: var(--space-1) var(--space-2);
+  border-radius: 9999px;
+  font-weight: 500;
+}
+
+.badgeSuccess {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+.badgeWarning {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+.badgeInfo {
+  background-color: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.insightContent {
+  color: var(--color-text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.mainContent {
+  display: grid;
+  grid-template-columns: 60% 1fr;
+  gap: var(--space-6);
+}
+
+.sectionTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+  color: var(--color-text);
+}
+
+.decisionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.decisionCard {
+  display: flex;
+  padding: var(--space-4);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+  gap: var(--space-4);
+}
+
+.priorityIndicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+.priorityHigh { background-color: var(--color-danger); }
+.priorityMedium { background-color: var(--color-warning); }
+.priorityLow { background-color: var(--color-info); }
+
+.decisionContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.decisionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.decisionTitle {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--color-text);
+}
+
+.decisionMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.metaItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.decisionRecommendation {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  font-style: italic;
+  background-color: var(--color-primary-glow);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+}
+
+.decisionActions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.btn {
+  padding: var(--space-2) var(--space-4);
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  transition: all 0.2s ease;
+}
+
+.btnApprove {
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+.btnApprove:hover { background-color: var(--color-success); color: white; }
+
+.btnDelay {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+.btnDelay:hover { background-color: var(--color-warning); color: white; }
+
+.btnAssign {
+  background-color: var(--color-info-bg);
+  color: var(--color-info);
+  border-color: var(--color-info);
+}
+.btnAssign:hover { background-color: var(--color-info); color: white; }
+
+.btnReject {
+  background-color: transparent;
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+.btnReject:hover { background-color: var(--color-danger); color: white; }
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.timelineItem {
+  display: flex;
+  gap: var(--space-4);
+  padding-bottom: var(--space-4);
+  position: relative;
+}
+
+.timelineItem:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 10px;
+  bottom: 0;
+  width: 2px;
+  background-color: var(--color-border);
+}
+
+.timelineDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  margin-top: 5px;
+  z-index: 1;
+}
+
+.timelineContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.timelineDate {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.timelineTitle {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.timelineOutcome {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.timelineOutcomeBadge {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.outcomeApproved { background-color: var(--color-success-bg); color: var(--color-success); }
+.outcomeRejected { background-color: var(--color-danger-bg); color: var(--color-danger); }
+.outcomeDelayed { background-color: var(--color-warning-bg); color: var(--color-warning); }
+
+.timelinePerson {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1024px) {
+  .insights { grid-template-columns: 1fr; }
+  .mainContent { grid-template-columns: 1fr; }
+}

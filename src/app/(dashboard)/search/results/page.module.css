@@ -1,0 +1,267 @@
+.page {
+  padding: 24px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.taskSummaryBar {
+  background: linear-gradient(90deg, var(--color-primary-subtle), transparent);
+  border-left: 4px solid var(--color-primary);
+  padding: 16px 24px;
+  border-radius: 0 var(--radius-lg, 12px) var(--radius-lg, 12px) 0;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.taskInfo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.taskName {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 1.1rem;
+}
+
+.taskStatus {
+  padding: 4px 10px;
+  background: var(--color-surface);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-primary);
+}
+
+.taskProgress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 200px;
+}
+
+.progressTrack {
+  flex: 1;
+  height: 6px;
+  background: var(--color-surface-alt);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.progressText {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* Fallback Table Styles */
+.tableContainer {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl, 16px);
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.th {
+  background: var(--color-surface-alt);
+  padding: 16px;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.td {
+  padding: 16px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text);
+  font-size: 0.95rem;
+  vertical-align: middle;
+}
+
+.tr:hover .td {
+  background: var(--color-surface-hover);
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.companyName {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.companyLocalName {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.qualityBar {
+  width: 100px;
+  height: 6px;
+  background: var(--color-surface-alt);
+  border-radius: 3px;
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.qualityFill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.qualityScore {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.actionBtn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.actionBtn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-primary);
+}
+
+.badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badgeInfo { background: var(--color-info-bg, rgba(24,144,255,0.1)); color: var(--color-info); }
+.badgeSuccess { background: var(--color-success-bg, rgba(82,196,26,0.1)); color: var(--color-success); }
+.badgeWarning { background: var(--color-warning-bg, rgba(250,173,20,0.1)); color: var(--color-warning); }
+.badgeDanger { background: var(--color-danger-bg, rgba(245,34,45,0.1)); color: var(--color-danger); }
+.badgeMuted { background: var(--color-surface-hover); color: var(--color-text-muted); }
+
+.loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 1.1rem;
+}
+
+.resultCount {
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+
+.trSelected {
+  background: var(--color-primary-light) !important;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 64px 24px;
+  color: var(--color-text-muted);
+}
+.emptyState p {
+  font-size: 1.1rem;
+  margin-bottom: var(--space-4);
+}
+.emptyState button {
+  padding: 8px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-primary);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  transition: all var(--transition-fast);
+}
+.emptyState button:hover {
+  background: var(--color-primary-light);
+}
+
+/* Card Grid View */
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--space-4);
+}
+
+.resultCard {
+  background: var(--color-surface);
+  backdrop-filter: blur(var(--glass-blur-2));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+.resultCard:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-glow);
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-3);
+}
+
+.cardMeta {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  font-size: var(--fs-sm);
+  color: var(--color-text-muted);
+}
+.cardMeta span {
+  padding: 2px 8px;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+}
+
+.cardBottom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}

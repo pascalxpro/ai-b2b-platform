@@ -1,0 +1,18 @@
+.container {
+  padding: var(--space-6);
+  animation: fadeIn 0.4s ease;
+}
+.title {
+  font-size: var(--fs-h2);
+  font-weight: var(--fw-bold);
+  color: var(--color-text);
+  margin-bottom: var(--space-6);
+}
+.content {
+  padding: var(--space-8);
+  border-radius: var(--radius-lg);
+  min-height: 400px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

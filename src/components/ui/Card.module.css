@@ -1,0 +1,30 @@
+/* src/components/ui/Card.module.css */
+.card {
+  background: var(--color-surface, rgba(255, 255, 255, 0.7));
+  backdrop-filter: blur(var(--glass-blur-2, 16px));
+  -webkit-backdrop-filter: blur(var(--glass-blur-2, 16px));
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+  border-radius: var(--radius-lg, 1rem);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease-in-out;
+  overflow: hidden;
+}
+
+.padding-none { padding: 0; }
+.padding-sm { padding: 1rem; }
+.padding-md { padding: 1.5rem; }
+.padding-lg { padding: 2rem; }
+
+.hoverable {
+  cursor: pointer;
+}
+.hoverable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border-color: var(--color-primary-glow, rgba(59, 130, 246, 0.5));
+}
+
+.selected {
+  border-color: var(--color-primary, #3b82f6);
+  box-shadow: 0 0 0 2px var(--color-primary, #3b82f6);
+}

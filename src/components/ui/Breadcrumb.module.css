@@ -1,0 +1,38 @@
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #94a3b8);
+  margin-bottom: 1.5rem;
+}
+
+.homeLink {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted, #94a3b8);
+  transition: color 0.2s ease;
+}
+
+.homeLink:hover {
+  color: var(--color-primary, #7c3aed);
+}
+
+.separator {
+  color: var(--color-border, #334155);
+}
+
+.link {
+  color: var(--color-text-muted, #94a3b8);
+  transition: color 0.2s ease;
+  text-decoration: none;
+}
+
+.link:hover {
+  color: var(--color-primary, #7c3aed);
+}
+
+.current {
+  color: var(--color-text, #f8fafc);
+  font-weight: 500;
+}
