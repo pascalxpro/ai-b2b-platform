@@ -68,7 +68,7 @@ export async function POST() {
       const existing = await prisma.task.findFirst({ where: { title: kt.title, workspaceId } })
       if (!existing) {
         await prisma.task.create({
-          data: { ...kt, workspaceId, assigneeId: users['wang@company.com'].id } as any
+          data: { ...kt, workspace: { connect: { id: workspaceId } }, assignee: { connect: { id: users['wang@company.com'].id } } } as any
         })
         tasksCreated++
       }
@@ -87,7 +87,7 @@ export async function POST() {
       const existing = await prisma.meeting.findFirst({ where: { title: mData.title, workspaceId } })
       if (!existing) {
         await prisma.meeting.create({
-          data: { ...mData, workspaceId, creatorId: users['admin@company.com'].id, actionItems: mData.actionItems || [] } as any
+          data: { ...mData, workspace: { connect: { id: workspaceId } }, creator: { connect: { id: users['admin@company.com'].id } }, actionItems: mData.actionItems || [] } as any
         })
         meetingsCreated++
       }
@@ -111,8 +111,8 @@ export async function POST() {
         await prisma.knowledgeItem.create({
           data: {
             ...kData,
-            workspaceId,
-            authorId: users['admin@company.com'].id,
+            workspace: { connect: { id: workspaceId } },
+            author: { connect: { id: users['admin@company.com'].id } },
             status: 'PUBLISHED',
             visibility: 'PUBLIC',
           } as any
@@ -129,11 +129,11 @@ export async function POST() {
       if (!existing) {
         await prisma.approval.create({
           data: {
-            workspaceId,
+            workspace: { connect: { id: workspaceId } },
             actionType: `review_${entity.id}`,
             payload: { entityName: entity.name, action: '審核客戶資料' },
-            requesterId: users['wang@company.com'].id,
-            approverId: users['admin@company.com'].id,
+            requester: { connect: { id: users['wang@company.com'].id } },
+            approver: { connect: { id: users['admin@company.com'].id } },
             status: ['PENDING', 'APPROVED', 'REJECTED'][Math.floor(Math.random() * 3)],
             reason: `審核 ${entity.name} 的客戶資料`,
           } as any
