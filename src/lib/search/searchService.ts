@@ -13,7 +13,7 @@ export async function executeSearchTask(taskId: string) {
     });
 
     // Build the query
-    const keywords = (task.criteria as any)?.keywords?.join(' ') || '';
+    const keywords = (task.criteriaJson as any)?.keywords?.join(' ') || '';
     const query = `${task.queryText} ${keywords}`.trim();
 
     // Configure search options
@@ -30,7 +30,7 @@ export async function executeSearchTask(taskId: string) {
 
     // Save results
     let savedCount = 0;
-    const targetCount = Math.min((task.criteria as any)?.targetCount || 10, response.results.length);
+    const targetCount = Math.min((task.criteriaJson as any)?.targetCount || 10, response.results.length);
 
     for (let i = 0; i < targetCount; i++) {
       const result = response.results[i];
