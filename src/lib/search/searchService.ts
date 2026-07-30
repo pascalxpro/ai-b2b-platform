@@ -44,12 +44,31 @@ async function inlineYahooSearch(query: string, targetCount: number): Promise<Se
       // Remove Yahoo tracking suffix /RK=.../RS=...
       decoded = decoded.split('/RK=')[0];
       
-      // Skip Yahoo's own domains and non-http links
+      // Skip non-B2B domains
       if (!decoded.startsWith('http')) continue;
-      if (decoded.includes('yahoo.com')) continue;
-      if (decoded.includes('uservoice.com')) continue;
-      if (decoded.includes('yimg.com')) continue;
-      if (decoded.includes('bing.com')) continue;
+      
+      const blocklist = [
+        'yahoo.com', 'uservoice.com', 'yimg.com', 'bing.com',
+        'google.com', 'google.co', 'googleapis.com', 'gstatic.com',
+        'wikipedia.org', 'wikimedia.org', 'wiktionary.org',
+        'youtube.com', 'youtu.be',
+        'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'linkedin.com', 'tiktok.com',
+        'reddit.com', 'pinterest.com', 'tumblr.com',
+        'amazon.com', 'amazon.co', 'ebay.com',
+        'tripadvisor.com', 'booking.com', 'expedia.com', 'kayak.com', 'kayak.co',
+        'hoponworld.com', 'japan-guide.com', 'japan.travel', 'jnto.go.jp',
+        'baidu.com', 'zhihu.com', 'weibo.com', 'qq.com',
+        'nytimes.com', 'reuters.com', 'bbc.com', 'cnn.com', 'usnews.com', 'upi.com',
+        'microsoft.com', 'apple.com', 'github.com', 'stackoverflow.com',
+        'cloudflare.com', 'akamai.com', 'fastly.net',
+        'wa.me', 'bit.ly', 't.co', 'goo.gl',
+      ];
+      
+      const urlLower = decoded.toLowerCase();
+      if (blocklist.some(blocked => urlLower.includes(blocked))) continue;
+      
+      // Skip image/video/asset URLs
+      if (/\.(jpg|jpeg|png|gif|svg|webp|mp4|pdf|css|js)(\?|$)/i.test(decoded)) continue;
       
       // Deduplicate
       if (seen.has(decoded)) continue;
