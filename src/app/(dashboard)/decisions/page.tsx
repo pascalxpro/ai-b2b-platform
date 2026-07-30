@@ -1,30 +1,47 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Target, TrendingUp, AlertTriangle, Lightbulb, Clock, User, Sparkles, Check, X, ArrowRightCircle, PauseCircle } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import styles from './page.module.css';
 
 export default function DecisionsPage() {
-  const decisions = [
-    { id: 1, title: '核准與ABC株式會社的合作提案', desc: '新一季戰略合作協議，涉及日幣1,000萬投資', entity: 'ABC株式會社', due: '今天', priority: 'high', ai: '建議核准，符合年度亞太擴展策略', recommendation: 'approve' },
-    { id: 2, title: '擴大越南市場投資預算', desc: '增加Q3行銷預算20%', entity: '越南分公司', due: '3天後', priority: 'medium', ai: '建議核准，該市場成長動能強勁', recommendation: 'approve' },
-    { id: 3, title: '批准新產品線包裝設計', desc: '環保材質包裝轉換計畫', entity: '產品部', due: '1週後', priority: 'low', ai: '建議延後，成本影響需進一步評估', recommendation: 'delay' },
-    { id: 4, title: '決定是否參加東京包裝展', desc: '2024年度最大行業展會參展決定', entity: '行銷部', due: '5天後', priority: 'medium', ai: '建議核准，預計可增加30%潛在客戶', recommendation: 'approve' },
-    { id: 5, title: '調整韓國市場定價策略', desc: '因應匯率波動調整價格', entity: '韓國區', due: '2週後', priority: 'low', ai: '建議轉派定價委員會審議', recommendation: 'assign' },
-    { id: 6, title: '是否將 Tata 升級為 VIP 客戶', desc: '年度採購額已達標', entity: 'Tata 集團', due: '1週後', priority: 'low', ai: '建議核准，提升客戶忠誠度', recommendation: 'approve' },
-    { id: 7, title: '核准新募業務人員入職', desc: '歐洲區業務經理2名', entity: 'HR部', due: '4天後', priority: 'low', ai: '建議核准，人力缺口已達警戒線', recommendation: 'approve' },
-    { id: 8, title: '簽署新加坡經銷商合約', desc: '為期兩年獨家經銷權', entity: 'SG Tech', due: '明天', priority: 'high', ai: '建議核准，條件優於市場平均', recommendation: 'approve' }
-  ];
+  const [decisions, setDecisions] = useState<any[]>([]);
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const timeline = [
-    { id: 1, date: '2024-07-28', title: '核准歐洲區Q3行銷預算', outcome: 'approved', by: '王大明 (總經理)' },
-    { id: 2, date: '2024-07-27', title: '拒絕供應商A的漲價要求', outcome: 'rejected', by: '李小美 (採購主管)' },
-    { id: 3, date: '2024-07-26', title: '延後新辦公室租賃決策', outcome: 'delayed', by: '陳建國 (營運長)' },
-    { id: 4, date: '2024-07-25', title: '核准北美市場定價調整', outcome: 'approved', by: '王大明 (總經理)' },
-    { id: 5, date: '2024-07-22', title: '拒絕非必要差旅申請', outcome: 'rejected', by: '陳建國 (營運長)' },
-    { id: 6, date: '2024-07-20', title: '核准中東市場代理權合約', outcome: 'approved', by: '王大明 (總經理)' }
-  ];
+  useEffect(() => {
+    fetch('/api/decisions')
+      .then(r => r.json())
+      .then(data => {
+        const parsed = data.map((d: any) => ({
+          ...d,
+          payload: typeof d.payload === 'string' ? JSON.parse(d.payload) : (d.payload || {})
+        }));
+
+        setDecisions(parsed.filter((d: any) => d.status === 'PENDING').map((d: any) => ({
+          id: d.id,
+          title: d.payload?.title || d.actionType,
+          desc: d.payload?.description || '',
+          entity: d.payload?.entity || d.requester?.name || '未知',
+          due: d.payload?.due || '近期',
+          priority: d.payload?.priority || 'medium',
+          ai: d.reason || '建議審慎評估',
+          recommendation: 'approve'
+        })));
+
+        setTimeline(parsed.filter((d: any) => d.status !== 'PENDING').map((d: any) => ({
+          id: d.id,
+          date: new Date(d.createdAt).toLocaleDateString(),
+          title: d.payload?.title || d.actionType,
+          outcome: d.status.toLowerCase(),
+          by: d.approver?.name || '系統'
+        })));
+
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   return (
     <div className={styles.container}>
@@ -65,7 +82,7 @@ export default function DecisionsPage() {
         <section>
           <h2 className={styles.sectionTitle}>待決策項目</h2>
           <div className={styles.decisionList}>
-            {decisions.map(item => (
+            {loading ? <p>載入中...</p> : decisions.map(item => (
               <div key={item.id} className={`glass-2 ${styles.decisionCard}`}>
                 <div className={`${styles.priorityIndicator} ${item.priority === 'high' ? styles.priorityHigh : item.priority === 'medium' ? styles.priorityMedium : styles.priorityLow}`} />
                 <div className={styles.decisionContent}>
@@ -96,7 +113,7 @@ export default function DecisionsPage() {
           <div className="glass-2" style={{ padding: 'var(--space-6)', borderRadius: '12px' }}>
             <h2 className={styles.sectionTitle}>決策歷程</h2>
             <div className={styles.timeline}>
-              {timeline.map(item => (
+              {loading ? <p>載入中...</p> : timeline.map(item => (
                 <div key={item.id} className={styles.timelineItem}>
                   <div className={styles.timelineDot} />
                   <div className={styles.timelineContent}>

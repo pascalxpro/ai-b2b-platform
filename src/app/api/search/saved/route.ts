@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchStore } from '@/lib/search/store';
-import { randomUUID } from 'crypto';
+import { prisma } from '@/lib/db/prisma';
 
 export async function GET(request: NextRequest) {
   try {
-    const saved = searchStore.listSavedSearches();
+    const { searchParams } = new URL(request.url);
+    const workspaceId = searchParams.get('workspaceId');
+    
+    if (!workspaceId) {
+      return NextResponse.json({ error: 'workspaceId required' }, { status: 400 });
+    }
+
+    const saved = await prisma.savedSearch.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: 'desc' },
+    });
+    
     return NextResponse.json(saved);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -14,19 +24,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, criteria } = body;
-    
-    if (!name || !criteria) {
-      return NextResponse.json({ error: 'Name and criteria are required' }, { status: 400 });
-    }
-    
-    const saved = searchStore.createSavedSearch({
-      id: randomUUID(),
-      name,
-      criteria,
-      createdAt: new Date().toISOString(),
-    });
-    
+    const saved = await prisma.savedSearch.create({ data: body });
     return NextResponse.json(saved, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

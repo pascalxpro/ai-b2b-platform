@@ -6,60 +6,8 @@ import { Eye } from 'lucide-react';
 import ResultsToolbar from '@/components/search/ResultsToolbar';
 import BatchActionBar from '@/components/search/BatchActionBar';
 import ResultDetailDrawer from '@/components/search/ResultDetailDrawer';
-import { Download, Filter, Search, Plus, CheckCircle, AlertCircle, XCircle, MoreVertical, Building2, Globe2, Tag, Loader2, Play } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import styles from './page.module.css';
-
-// Mock Data - 30 results
-const MOCK_RESULTS = Array.from({ length: 30 }).map((_, i) => {
-  const countries = ['台灣', '日本', '美國', '德國', '越南', '韓國', '泰國', '新加坡'];
-  const industries = ['半導體', '食品包裝', '電子零件', '汽車零件', '機械設備', '化學材料'];
-  const types = ['製造商', '代理商', '經銷商', '進口商'];
-  const statuses = ['NEW', 'VALID', 'PENDING_REVIEW', 'DUPLICATE', 'INVALID'] as const;
-  const names = [
-    'TechCorp Innovations', 'NexGen Solutions', 'GlobalParts Ltd', 'Yamada Manufacturing',
-    'Pacific Trading Co', 'EuroPack GmbH', 'AsiaLink Corp', 'Dragon Electronics',
-    'SunRise Industries', 'Apex Precision', 'KingTech Systems', 'FuturePak Inc',
-    'MegaTrade Asia', 'StarChem Corp', 'OceanBridge Ltd', 'PrimeMotion K.K.',
-    'Alliance Components', 'BrightWave Tech', 'CrystalPack Co', 'DeltaForce Mfg',
-    'EagleTech Systems', 'FairPoint Trading', 'GoldStar Precision', 'HarmonyPak Ltd',
-    'IronBridge Corp', 'JetStream Solutions', 'KoreaLink Co', 'LionGate Industries',
-    'MetaPack Trading', 'NovaTech Asia'
-  ];
-  const localNames = [
-    '科技創新有限公司', '新世代方案公司', '環球零件有限公司', '山田製造株式会社',
-    '太平洋貿易有限公司', 'EuroPack 有限公司', '亞洲連結公司', '龍騰電子公司',
-    '旭日工業', '頂峰精密', '金科技系統', '未來包裝公司',
-    '大貿亞洲', '星辰化學', '海橋有限公司', 'PrimeMotion 株式会社',
-    '聯盟零件', '明波科技', '水晶包裝', '三角力量製造',
-    '鷹科技系統', '公正貿易', '金星精密', '和諧包裝',
-    '鐵橋公司', '噴流方案', '韓連公司', '獅門工業',
-    'MetaPack 貿易', '新星科技亞洲'
-  ];
-
-  return {
-    id: `res-${i}`,
-    name: names[i % names.length],
-    localName: localNames[i % localNames.length],
-    country: countries[i % countries.length],
-    industry: industries[i % industries.length],
-    companyType: types[i % types.length],
-    employeeCount: `${(i + 1) * 50}-${(i + 2) * 100}`,
-    revenue: `$${(i + 1) * 5}M`,
-    website: `https://${names[i % names.length].toLowerCase().replace(/\s+/g, '')}.com`,
-    email: `contact@${names[i % names.length].toLowerCase().replace(/\s+/g, '')}.com`,
-    phone: `+886 2 ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)}`,
-    linkedin: `https://linkedin.com/company/${names[i % names.length].toLowerCase().replace(/\s+/g, '-')}`,
-    sourceCount: Math.floor(Math.random() * 5) + 1,
-    qualityScore: Math.floor(Math.random() * 40) + 60,
-    qualityStatus: statuses[i % statuses.length],
-    conversionStatus: 'NONE',
-    sources: [
-      { provider: 'Web Search', url: '#', confidence: 85 + Math.floor(Math.random() * 15) },
-      { provider: 'LinkedIn', url: '#', confidence: 80 + Math.floor(Math.random() * 20) }
-    ]
-  };
-});
 
 function SearchResultsContent() {
   const searchParams = useSearchParams();
@@ -79,12 +27,29 @@ function SearchResultsContent() {
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setResults(MOCK_RESULTS);
-      setLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [taskId]);
+    fetch('/api/search/results')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setResults(data.map((d: any) => ({
+            id: d.id,
+            name: d.companyName || d.name || '未知',
+            localName: d.companyName || '',
+            country: d.country || '未知',
+            industry: '未知產業',
+            companyType: '未知類型',
+            qualityScore: d.scoreJson ? JSON.parse(d.scoreJson).totalScore || 70 : 70,
+            qualityStatus: d.qualityStatus || 'NEW',
+            conversionStatus: d.conversionStatus || 'NONE',
+            sourceCount: 1,
+            website: d.website || '',
+            createdAt: d.createdAt
+          })));
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   // Filtered & sorted results
   const filteredResults = useMemo(() => {
@@ -172,7 +137,6 @@ function SearchResultsContent() {
     }
   };
 
-  // Handler: update quality status for selected items
   const handleBatchStatus = (newStatus: string) => {
     setResults(prev =>
       prev.map(r =>

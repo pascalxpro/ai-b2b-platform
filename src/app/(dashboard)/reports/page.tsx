@@ -1,21 +1,34 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Globe, Users, Sparkles, Download, Share2, Eye } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import styles from './page.module.css';
 
 export default function ReportsPage() {
-  const reports = [
-    { id: 1, title: '2024 Q2 銷售績效總覽', type: '銷售分析', date: '2024-07-15', status: 'done', color: 'var(--color-primary)' },
-    { id: 2, title: '日本市場競品分析報告', type: '市場研究', date: '2024-07-20', status: 'done', color: 'var(--color-info)' },
-    { id: 3, title: 'Q2 團隊績效評估', type: '績效報告', date: '2024-07-10', status: 'done', color: 'var(--color-success)' },
-    { id: 4, title: '東南亞市場進入可行性分析', type: '市場研究', date: '2024-07-25', status: 'doing', color: 'var(--color-info)' },
-    { id: 5, title: '客戶流失率分析 - 全區域', type: '自訂報表', date: '2024-07-22', status: 'done', color: 'var(--color-accent)' },
-    { id: 6, title: 'Q3 目標與策略報告', type: '銷售分析', date: '2024-07-28', status: 'draft', color: 'var(--color-primary)' },
-    { id: 7, title: '歐洲市場法規影響報告', type: '市場研究', date: '2024-06-30', status: 'done', color: 'var(--color-info)' },
-    { id: 8, title: '月度業務報表 - 7月', type: '績效報告', date: '2024-07-29', status: 'doing', color: 'var(--color-success)' }
-  ];
+  const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/search/tasks?status=COMPLETED')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setReports(data.map((d: any) => ({
+            id: d.id,
+            title: d.name || '搜尋報告',
+            type: '搜尋任務',
+            date: d.createdAt ? new Date(d.createdAt).toLocaleDateString() : '未知日期',
+            status: 'done',
+            color: 'var(--color-primary)'
+          })));
+        } else {
+          setReports([]);
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   const renderMiniChart = (color: string) => (
     <svg viewBox="0 0 100 40" className={styles.miniChart} preserveAspectRatio="none">
@@ -70,7 +83,7 @@ export default function ReportsPage() {
         </div>
 
         <div className={styles.reportsGrid}>
-          {reports.map(report => (
+          {loading ? <p>載入中...</p> : reports.map(report => (
             <div key={report.id} className={`glass-2 ${styles.reportCard}`}>
               <div className={styles.reportHeader}>
                 <div className={styles.typeBadge}>
@@ -98,11 +111,11 @@ export default function ReportsPage() {
 
       <div className={`glass-1 ${styles.statsBar}`}>
         <div className={styles.statItem}>
-          <div className={styles.statValue}>12 份</div>
+          <div className={styles.statValue}>{reports.length} 份</div>
           <div className={styles.statLabel}>本月產出</div>
         </div>
         <div className={styles.statItem}>
-          <div className={styles.statValue}>8 份 (67%)</div>
+          <div className={styles.statValue}>{reports.length} 份 (100%)</div>
           <div className={styles.statLabel}>AI 產出</div>
         </div>
         <div className={styles.statItem}>

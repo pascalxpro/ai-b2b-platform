@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './page.module.css';
 import { 
   Settings, 
@@ -20,6 +20,30 @@ import {
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('users');
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/users')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setUsers(data.map((u: any) => ({
+            id: u.id,
+            name: u.name || '未知',
+            email: u.email || '',
+            role: u.workspaceMembers?.[0]?.role || '成員',
+            roleClass: styles.badgeDefault,
+            ws: u.workspaceMembers?.[0]?.workspace?.name || '無',
+            status: u.status === 'ACTIVE' ? '啟用' : '停用',
+            statusClass: u.status === 'ACTIVE' ? styles.badgeSuccess : styles.badgeWarning,
+            login: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '未知'
+          })));
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
 
   return (
     <div className={styles.container}>
@@ -82,16 +106,9 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    { name: '王大明', email: 'ming.wang@company.com', role: '系統管理員', roleClass: styles.badgePrimary, ws: '全域', status: '啟用', statusClass: styles.badgeSuccess, login: '10分鐘前' },
-                    { name: '林小華', email: 'hua.lin@company.com', role: '高階主管', roleClass: styles.badgeGold, ws: 'Global Sales', status: '啟用', statusClass: styles.badgeSuccess, login: '1小時前' },
-                    { name: '陳建國', email: 'chen.jg@company.com', role: 'Workspace主管', roleClass: styles.badgeAccent, ws: 'APAC Region', status: '啟用', statusClass: styles.badgeSuccess, login: '3小時前' },
-                    { name: '李美玲', email: 'mei.lee@company.com', role: '成員', roleClass: styles.badgeDefault, ws: 'APAC Region', status: '啟用', statusClass: styles.badgeSuccess, login: '昨天' },
-                    { name: '張偉', email: 'wei.zhang@company.com', role: '成員', roleClass: styles.badgeDefault, ws: 'EMEA Region', status: '啟用', statusClass: styles.badgeSuccess, login: '昨天' },
-                    { name: '劉雅婷', email: 'ya.liu@company.com', role: '成員', roleClass: styles.badgeDefault, ws: 'NA Region', status: '停用', statusClass: styles.badgeWarning, login: '1週前' },
-                    { name: '吳柏毅', email: 'po.wu@company.com', role: '成員', roleClass: styles.badgeDefault, ws: 'APAC Region', status: '啟用', statusClass: styles.badgeSuccess, login: '2週前' },
-                    { name: '蔡佳穎', email: 'chia.tsai@company.com', role: '成員', roleClass: styles.badgeDefault, ws: 'Global Sales', status: '啟用', statusClass: styles.badgeSuccess, login: '1個月前' },
-                  ].map((user, i) => (
+                  {loading ? (
+                    <tr><td colSpan={7}>載入中...</td></tr>
+                  ) : users.map((user, i) => (
                     <tr key={i}>
                       <td>{user.name}</td>
                       <td>{user.email}</td>
@@ -118,40 +135,7 @@ export default function AdminPage() {
         {/* Tab 2: Providers */}
         {activeTab === 'providers' && (
           <div className={styles.providerGrid}>
-            {[
-              { name: 'Google Search API', icon: Globe, status: '已連線', statusIcon: CheckCircle2, statusColor: 'var(--color-success)', key: 'AIzaSyB***X9Y', quota: 45, max: 100 },
-              { name: 'LinkedIn Sales Nav', icon: Briefcase, status: '已連線', statusIcon: CheckCircle2, statusColor: 'var(--color-success)', key: 'LIN_***890', quota: 80, max: 100 },
-              { name: 'D&B Hoovers', icon: Database, status: '未設定', statusIcon: XCircle, statusColor: 'var(--color-warning)', key: '尚未設定', quota: 0, max: 100 },
-              { name: '自建爬蟲系統', icon: Shield, status: '已連線', statusIcon: CheckCircle2, statusColor: 'var(--color-success)', key: '內部驗證', quota: 15, max: 100 },
-            ].map((provider, i) => (
-              <div key={i} className={`${styles.providerCard} glass-2`}>
-                <div className={styles.providerHeader}>
-                  <div className={styles.providerTitle}>
-                    <div className={styles.providerIcon}><provider.icon size={20} /></div>
-                    {provider.name}
-                  </div>
-                  <span style={{ color: provider.statusColor, display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.875rem' }}>
-                    <provider.statusIcon size={16} />
-                    {provider.status}
-                  </span>
-                </div>
-                <div className={styles.providerBody}>
-                  <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>API Key</span>
-                    <span className={styles.apiKey}>{provider.key}</span>
-                  </div>
-                  <div className={styles.quotaContainer}>
-                    <div className={styles.infoRow}>
-                      <span className={styles.infoLabel}>使用配額</span>
-                      <span>{provider.quota}%</span>
-                    </div>
-                    <div className={styles.quotaBar}>
-                      <div className={styles.quotaFill} style={{ width: `${provider.quota}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+            <p style={{ padding: '20px' }}>無提供者資料</p>
           </div>
         )}
 

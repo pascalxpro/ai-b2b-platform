@@ -1,38 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchEngine } from '@/lib/search/search-engine';
-import { searchStore } from '@/lib/search/store';
+import { prisma } from '@/lib/db/prisma';
 
-// POST: Create and optionally start a search task
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { name, criteria, autoStart = true } = body;
+    const { searchParams } = new URL(request.url);
+    const workspaceId = searchParams.get('workspaceId');
     
-    // Validate criteria
-    if (!criteria) {
-      return NextResponse.json({ error: 'Criteria required' }, { status: 400 });
+    if (!workspaceId) {
+      return NextResponse.json({ error: 'workspaceId required' }, { status: 400 });
     }
     
-    const task = await searchEngine.createTask(name || 'Untitled Search', criteria);
+    const tasks = await prisma.searchTask.findMany({
+      where: { workspaceId },
+      include: {
+        createdBy: { select: { name: true } },
+        _count: { select: { searchResults: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
     
-    if (autoStart) {
-      // Start execution in background (don't await)
-      searchEngine.executeTask(task.id).catch(console.error);
-    }
-    
-    return NextResponse.json(task, { status: 201 });
+    return NextResponse.json(tasks);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// GET: List tasks with optional status filter
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') || undefined;
-    const tasks = searchStore.listTasks(status ? { status } : undefined);
-    return NextResponse.json(tasks);
+    const body = await request.json();
+    const task = await prisma.searchTask.create({ data: body });
+    return NextResponse.json(task, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

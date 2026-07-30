@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Search, FileSearch, TrendingUp, Users, Target, Calendar, Clock, ArrowUpRight, CheckSquare } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import Link from 'next/link';
@@ -37,13 +38,31 @@ const activities = [
 ];
 
 export default function DashboardPage() {
+  const [counts, setCounts] = useState({ searches: 0, results: 0, entities: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/search/tasks').then(r => r.json()).catch(() => []),
+      fetch('/api/entities').then(r => r.json()).catch(() => []),
+      fetch('/api/tasks').then(r => r.json()).catch(() => [])
+    ]).then(([searchTasks, entities, tasks]) => {
+      setCounts({
+        searches: searchTasks.length || 0,
+        results: searchTasks.reduce((acc: number, task: any) => acc + (task.results?.length || 0), 0) || 0,
+        entities: entities.length || 0
+      });
+      setLoading(false);
+    });
+  }, []);
+
   return (
     <div className={styles.dashboard}>
       <header className={styles.header}>
         <div className={styles.titleContainer}>
           <Breadcrumb items={[{ label: 'Dashboard' }]} />
           <h1 className={styles.title}>Dashboard</h1>
-          <p className={styles.dateRange}>2026年7月22日 - 2026年7月28日</p>
+          <p className={styles.dateRange}>近期數據總覽</p>
         </div>
       </header>
 
@@ -53,7 +72,7 @@ export default function DashboardPage() {
             <Search size={24} />
           </div>
           <div className={styles.kpiContent}>
-            <span className={styles.kpiValue}>12</span>
+            <span className={styles.kpiValue}>{loading ? '...' : counts.searches}</span>
             <span className={styles.kpiLabel}>搜尋任務</span>
           </div>
           <div className={`${styles.trend} ${styles.trendUp}`}>
@@ -66,7 +85,7 @@ export default function DashboardPage() {
             <FileSearch size={24} />
           </div>
           <div className={styles.kpiContent}>
-            <span className={styles.kpiValue}>847</span>
+            <span className={styles.kpiValue}>{loading ? '...' : counts.results}</span>
             <span className={styles.kpiLabel}>搜尋結果</span>
           </div>
           <div className={`${styles.trend} ${styles.trendUp}`}>
@@ -92,7 +111,7 @@ export default function DashboardPage() {
             <Users size={24} />
           </div>
           <div className={styles.kpiContent}>
-            <span className={styles.kpiValue}>156</span>
+            <span className={styles.kpiValue}>{loading ? '...' : counts.entities}</span>
             <span className={styles.kpiLabel}>活躍客戶</span>
           </div>
           <div className={`${styles.trend} ${styles.trendUp}`}>
