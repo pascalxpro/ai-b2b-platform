@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const workspaceId = searchParams.get('workspaceId');
     const status = searchParams.get('status');
     const search = searchParams.get('search');
+    const searchTaskId = searchParams.get('searchTaskId') || searchParams.get('taskId');
     const limitParam = searchParams.get('limit');
     const offsetParam = searchParams.get('offset');
     
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
     
     const where: any = {};
     if (workspaceId) where.workspaceId = workspaceId;
+    if (searchTaskId) where.searchTaskId = searchTaskId;
     
     if (status) {
       // Treat status as qualityStatus for filtering

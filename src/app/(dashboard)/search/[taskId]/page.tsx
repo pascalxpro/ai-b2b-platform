@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { XCircle, List } from 'lucide-react';
+import { XCircle, List, RefreshCw } from 'lucide-react';
 import styles from './page.module.css';
 
 export default function SearchTaskDetailPage() {
@@ -11,79 +11,111 @@ export default function SearchTaskDetailPage() {
   const taskId = params.taskId as string;
 
   const [task, setTask] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchTaskDetails = async () => {
+    try {
+      const res = await fetch(`/api/search/tasks/${taskId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTask(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch task details', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Mock initial fetch
-    setTask({
-      id: taskId,
-      name: '日本食品包裝機械製造商',
-      status: 'RUNNING',
-      createdTime: '2026-07-29 10:00:00',
-      startedTime: '2026-07-29 10:01:23',
-      targetCount: 50,
-      foundCount: 32,
-      validCount: 28,
-      duplicateCount: 4,
-      estimatedCost: 3.5,
-      previewResults: [
-        { id: '1', name: 'Tokyo Packaging Corp', country: '日本', score: 95 },
-        { id: '2', name: 'Osaka Machinery', country: '日本', score: 88 },
-        { id: '3', name: 'Nippon Food Tech', country: '日本', score: 82 },
-        { id: '4', name: 'Yokohama Pack Solutions', country: '日本', score: 79 },
-        { id: '5', name: 'Kyoto Industrial Co', country: '日本', score: 76 },
-      ],
-      activityLog: [
-        { time: '10:15:23', msg: '找到 Tokyo Packaging Corp (品質 95)' },
-        { time: '10:14:08', msg: '正在掃描 Google Search 第 3 頁...' },
-        { time: '10:12:45', msg: '找到 Osaka Machinery (品質 88)' },
-        { time: '10:11:30', msg: '找到 Nippon Food Tech (品質 82)' },
-        { time: '10:10:12', msg: '開始執行搜尋任務...' },
-        { time: '10:01:23', msg: '任務已提交並加入佇列' },
-      ]
-    });
+    fetchTaskDetails();
 
-    // Mock polling if RUNNING
+    // Poll for updates if task is queued or running
     const interval = setInterval(() => {
-      setTask((prev: any) => {
-        if (prev?.status !== 'RUNNING') return prev;
-        const newFound = Math.min(prev.foundCount + Math.floor(Math.random() * 3), prev.targetCount);
-        const isCompleted = newFound >= prev.targetCount;
-        return {
-          ...prev,
-          foundCount: newFound,
-          validCount: Math.floor(newFound * 0.9),
-          status: isCompleted ? 'COMPLETED' : 'RUNNING'
-        };
-      });
-    }, 2000);
+      fetchTaskDetails();
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [taskId]);
 
-  if (!task) return <div className={styles.page}>載入中...</div>;
+  if (loading && !task) {
+    return <div className={styles.page} style={{ color: '#fff', padding: '40px' }}>載入任務資料中...</div>;
+  }
 
-  const progress = Math.round((task.foundCount / task.targetCount) * 100);
+  if (!task) {
+    return (
+      <div className={styles.page} style={{ color: '#fff', padding: '40px' }}>
+        <h2>找不到指定的搜尋任務</h2>
+        <button className={`${styles.btn} ${styles.btnPrimary}`} style={{ marginTop: '16px' }} onClick={() => router.push('/search/results')}>
+          返回搜尋中心
+        </button>
+      </div>
+    );
+  }
+
+  const results = task.searchResults || [];
+  const foundCount = results.length;
+  const targetCount = task.targetCount || (task.criteriaJson as any)?.targetCount || 50;
+  const progress = Math.min(100, Math.round((foundCount / targetCount) * 100));
+
+  // Generate dynamic real activity logs based on task state
+  const logs = [];
+  logs.push({
+    time: task.createdAt ? new Date(task.createdAt).toLocaleTimeString() : '',
+    msg: `建立搜尋任務：「${task.name}」`
+  });
+
+  if (task.startedAt) {
+    logs.push({
+      time: new Date(task.startedAt).toLocaleTimeString(),
+      msg: '開始執行網路搜尋引擎抓取...'
+    });
+  }
+
+  results.forEach((item: any) => {
+    const title = item.companyName || item.website;
+    const provider = item.scoreJson?.provider ? `[${item.scoreJson.provider}] ` : '';
+    logs.push({
+      time: item.createdAt ? new Date(item.createdAt).toLocaleTimeString() : '',
+      msg: `${provider}成功抓取目標企業：${title}`
+    });
+  });
+
+  if (task.status === 'COMPLETED') {
+    logs.push({
+      time: new Date(task.updatedAt || Date.now()).toLocaleTimeString(),
+      msg: `搜尋完成！共取得 ${foundCount} 筆資料`
+    });
+  } else if (task.status === 'FAILED') {
+    logs.push({
+      time: new Date(task.updatedAt || Date.now()).toLocaleTimeString(),
+      msg: `搜尋失敗或逾時`
+    });
+  }
+
+  // Reverse logs so latest is first
+  logs.reverse();
 
   return (
     <div className={styles.page}>
       <div className={styles.headerCard}>
         <div className={styles.headerTop}>
           <div className={styles.titleArea}>
-            <span className={`${styles.badge} ${task.status === 'RUNNING' ? styles.badgePulse : styles.badgeDone}`}>
-            {task.status === 'RUNNING' ? '執行中' : '✅ 已完成'}
-          </span>
+            <span className={`${styles.badge} ${task.status === 'RUNNING' || task.status === 'QUEUED' ? styles.badgePulse : styles.badgeDone}`}>
+              {task.status === 'RUNNING' ? '搜尋執行中' : task.status === 'QUEUED' ? '佇列中' : task.status === 'COMPLETED' ? '✅ 已完成' : '❌ 失敗'}
+            </span>
             <h1 className={styles.title}>{task.name}</h1>
           </div>
           <div className={styles.timeInfo}>
-            <span>建立時間: {task.createdTime}</span>
-            <span>開始時間: {task.startedTime}</span>
+            <span>建立時間: {task.createdAt ? new Date(task.createdAt).toLocaleString() : '-'}</span>
+            {task.startedAt && <span>開始時間: {new Date(task.startedAt).toLocaleString()}</span>}
           </div>
         </div>
 
         <div className={styles.progressSection}>
           <div className={styles.progressHeader}>
             <span className={styles.progressLabel}>搜尋進度</span>
-            <span className={styles.progressStats}>{task.foundCount} / {task.targetCount} ({progress}%)</span>
+            <span className={styles.progressStats}>{foundCount} / {targetCount} ({progress}%)</span>
           </div>
           <div className={styles.progressTrackLarge}>
             <div className={styles.progressBarLarge} style={{ width: `${progress}%` }} />
@@ -92,16 +124,16 @@ export default function SearchTaskDetailPage() {
 
         <div className={styles.statsGrid}>
           <div className={styles.statCard}>
-            <span className={styles.statLabel}>有效結果</span>
-            <span className={styles.statValue} style={{ color: 'var(--color-success)' }}>{task.validCount}</span>
+            <span className={styles.statLabel}>已抓取真實結果</span>
+            <span className={styles.statValue} style={{ color: 'var(--color-success)' }}>{foundCount}</span>
           </div>
           <div className={styles.statCard}>
-            <span className={styles.statLabel}>重複結果</span>
-            <span className={styles.statValue} style={{ color: 'var(--color-warning)' }}>{task.duplicateCount}</span>
+            <span className={styles.statLabel}>目標設定數量</span>
+            <span className={styles.statValue} style={{ color: 'var(--color-warning)' }}>{targetCount}</span>
           </div>
           <div className={styles.statCard}>
-            <span className={styles.statLabel}>預估花費</span>
-            <span className={styles.statValue}>${task.estimatedCost.toFixed(2)}</span>
+            <span className={styles.statLabel}>任務狀態</span>
+            <span className={styles.statValue}>{task.status}</span>
           </div>
         </div>
 
@@ -111,44 +143,54 @@ export default function SearchTaskDetailPage() {
             onClick={() => router.push(`/search/results?taskId=${taskId}`)}
           >
             <List size={20} />
-            查看所有結果
+            查看所有搜尋結果 ({foundCount})
           </button>
-          {task.status === 'RUNNING' && (
-            <button className={`${styles.btn} ${styles.btnDangerGhost}`} onClick={() => setTask((prev: any) => ({ ...prev, status: 'CANCELLED' }))}>
-              <XCircle size={20} />
-              取消任務
-            </button>
-          )}
+          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={fetchTaskDetails}>
+            <RefreshCw size={18} />
+            手動重新整理
+          </button>
         </div>
       </div>
 
       <div className={styles.bottomGrid}>
         <div className={styles.previewSection}>
-          <h2 className={styles.sectionTitle}>最新結果預覽</h2>
-          <table className={styles.previewTable}>
-            <thead>
-              <tr>
-                <th>公司名稱</th>
-                <th>國家</th>
-                <th>品質分數</th>
-              </tr>
-            </thead>
-            <tbody>
-              {task.previewResults.map((res: any) => (
-                <tr key={res.id}>
-                  <td style={{ fontWeight: 600 }}>{res.name}</td>
-                  <td>{res.country}</td>
-                  <td style={{ color: 'var(--color-success)', fontWeight: 600 }}>{res.score}</td>
+          <h2 className={styles.sectionTitle}>最新結果預覽 (真實資料)</h2>
+          {results.length === 0 ? (
+            <div style={{ padding: '24px', color: '#9ca3af', textAlign: 'center' }}>
+              {task.status === 'RUNNING' || task.status === 'QUEUED' ? '正在搜尋中，請稍候...' : '尚無抓取結果'}
+            </div>
+          ) : (
+            <table className={styles.previewTable}>
+              <thead>
+                <tr>
+                  <th>公司名稱</th>
+                  <th>網站 URL</th>
+                  <th>來源資訊</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {results.slice(0, 10).map((res: any) => (
+                  <tr key={res.id}>
+                    <td style={{ fontWeight: 600 }}>{res.companyName}</td>
+                    <td>
+                      <a href={res.website} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>
+                        {res.website}
+                      </a>
+                    </td>
+                    <td style={{ color: '#9ca3af', fontSize: '13px' }}>
+                      {res.scoreJson?.provider || 'Web Scraper'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <div className={styles.logSection}>
-          <h2 className={styles.sectionTitle}>執行日誌</h2>
+          <h2 className={styles.sectionTitle}>即時執行日誌</h2>
           <div className={styles.logList}>
-            {task.activityLog?.map((log: any, i: number) => (
+            {logs.map((log: any, i: number) => (
               <div key={i} className={styles.logItem}>
                 <span className={styles.logTime}>{log.time}</span>
                 <span className={styles.logMsg}>{log.msg}</span>

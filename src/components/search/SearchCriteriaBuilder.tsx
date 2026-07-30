@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, KeyboardEvent } from 'react';
+import React, { useState, useEffect, KeyboardEvent } from 'react';
 import { X, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import styles from './SearchCriteriaBuilder.module.css';
@@ -76,8 +76,37 @@ export default function SearchCriteriaBuilder({
   const [companyTypes, setCompanyTypes] = useState<string[]>([]);
   const [targetCount, setTargetCount] = useState<number>(50);
   
+  const [savedSearches, setSavedSearches] = useState<any[]>([]);
+  const [selectedSavedId, setSelectedSavedId] = useState<string>('');
+
   const [isEstimating, setIsEstimating] = useState(false);
   const [showEstimates, setShowEstimates] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/search/saved')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setSavedSearches(data);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleSelectSaved = (id: string) => {
+    setSelectedSavedId(id);
+    const item = savedSearches.find(s => s.id === id);
+    if (!item) return;
+
+    const crit = item.criteriaJson || {};
+    setDescription(crit.queryText || item.name || '');
+    setCountries(crit.countries || []);
+    setIndustries(crit.industries || []);
+    setKeywords(crit.keywords || []);
+    setCompanyTypes(crit.companyTypes || []);
+    setTargetCount(crit.targetCount || 50);
+    setShowEstimates(true);
+  };
 
   const COMPANY_TYPES = ['製造商', '代理商', '經銷商', '進口商', '批發商'];
   const COUNTRY_SUGGESTIONS = ['台灣', '日本', '美國', '越南', '泰國', '德國'];
@@ -175,6 +204,25 @@ export default function SearchCriteriaBuilder({
             <X size={24} />
           </button>
         </div>
+
+        {savedSearches.length > 0 && (
+          <div className={styles.section} style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
+            <h3 className={styles.sectionTitle} style={{ fontSize: '13px', color: '#a1a1aa' }}>快速載入已儲存條件</h3>
+            <select
+              className={styles.textarea}
+              style={{ height: '38px', padding: '0 12px', cursor: 'pointer' }}
+              value={selectedSavedId}
+              onChange={e => handleSelectSaved(e.target.value)}
+            >
+              <option value="">-- 選擇已儲存的搜尋條件 --</option>
+              {savedSearches.map(item => (
+                <option key={item.id} value={item.id}>
+                  {item.name || item.criteriaJson?.queryText || '未命名條件'} ({new Date(item.createdAt).toLocaleDateString()})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>自然語言描述</h3>

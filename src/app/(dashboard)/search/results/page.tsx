@@ -27,7 +27,8 @@ function SearchResultsContent() {
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
 
   useEffect(() => {
-    fetch('/api/search/results')
+    const url = taskId ? `/api/search/results?taskId=${taskId}` : '/api/search/results';
+    fetch(url)
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -49,7 +50,7 @@ function SearchResultsContent() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [taskId]);
 
   // Filtered & sorted results
   const filteredResults = useMemo(() => {
