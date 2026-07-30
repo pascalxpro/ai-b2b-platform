@@ -52,9 +52,25 @@ export async function POST(request: NextRequest) {
       } 
     });
     
-    // Execute search asynchronously
+    // Execute search synchronously - must await because serverless runtimes
+    // kill background tasks after response is sent
     if (autoStart) {
-      executeSearchTask(task.id).catch(console.error);
+      try {
+        await executeSearchTask(task.id);
+      } catch (e) {
+        console.error('Search execution error:', e);
+      }
+      
+      // Re-fetch task with results to return to client
+      const updatedTask = await prisma.searchTask.findUnique({
+        where: { id: task.id },
+        include: {
+          searchResults: {
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      });
+      return NextResponse.json(updatedTask, { status: 201 });
     }
     
     return NextResponse.json(task, { status: 201 });

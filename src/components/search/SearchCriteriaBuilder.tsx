@@ -81,6 +81,7 @@ export default function SearchCriteriaBuilder({
 
   const [isEstimating, setIsEstimating] = useState(false);
   const [showEstimates, setShowEstimates] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     fetch('/api/search/saved')
@@ -124,6 +125,7 @@ export default function SearchCriteriaBuilder({
   };
 
   const handleSubmit = async () => {
+    setIsSearching(true);
     try {
       const response = await fetch('/api/search/tasks', {
         method: 'POST',
@@ -153,6 +155,8 @@ export default function SearchCriteriaBuilder({
       console.error('Failed to create task', error);
       router.push('/search/results');
       onClose();
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -344,8 +348,8 @@ export default function SearchCriteriaBuilder({
           <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={handleSave}>
             儲存條件
           </button>
-          <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleSubmit}>
-            開始搜尋
+          <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleSubmit} disabled={isSearching}>
+            {isSearching ? '⏳ 搜尋引擎抓取中...' : '開始搜尋'}
           </button>
         </div>
       </div>
