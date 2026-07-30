@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db/prisma';
 import { getSystemSettings } from '@/lib/settings/settingsService';
 import { searchWithTavily, SearchProviderResult } from './providers/tavilyProvider';
 import { searchWithGoogleThis } from './providers/googleThisProvider';
+import { searchWithDuckDuckGo } from './providers/duckDuckGoProvider';
 
 export async function executeSearchTask(taskId: string) {
   try {
@@ -11,7 +12,7 @@ export async function executeSearchTask(taskId: string) {
     // Update status to RUNNING
     await prisma.searchTask.update({
       where: { id: taskId },
-      data: { status: 'RUNNING' },
+      data: { status: 'RUNNING', startedAt: new Date() },
     });
 
     // Build query
@@ -21,7 +22,13 @@ export async function executeSearchTask(taskId: string) {
 
     // Load provider configuration & priority
     const settings = getSystemSettings();
-    const priorityList = settings.providerPriority || ['tavily', 'googlethis'];
+    let priorityList = settings.providerPriority || ['tavily', 'googlethis', 'duckduckgo'];
+    
+    // Ensure duckduckgo is in priority list as ultimate fallback
+    if (!priorityList.includes('duckduckgo')) {
+      priorityList.push('duckduckgo');
+    }
+
     const tavilyKeys = settings.tavilyApiKeys || '';
 
     console.log(`[SearchService] Task ${taskId} executing. Query: "${query}". Provider Priority:`, priorityList);
@@ -41,27 +48,53 @@ export async function executeSearchTask(taskId: string) {
 
         try {
           const tavilyRes = await searchWithTavily(query, requestedCount, tavilyKeys);
-          searchResults = tavilyRes.results;
-          executedProvider = 'Tavily';
-          if (searchResults.length > 0) break; // Successfully got results
+          if (tavilyRes.results && tavilyRes.results.length > 0) {
+            searchResults = tavilyRes.results;
+            executedProvider = 'Tavily AI';
+            break;
+          }
         } catch (error: any) {
           console.warn('[SearchService] Tavily provider failed or all keys exhausted:', error.message);
-          // Fall through to next provider in priority
         }
       } else if (normalizedProvider === 'googlethis' || normalizedProvider === 'google') {
         try {
           const googleRes = await searchWithGoogleThis(query, requestedCount);
-          searchResults = googleRes.results;
-          executedProvider = 'GoogleThis (Scraper)';
-          if (searchResults.length > 0) break; // Successfully got results
+          if (googleRes.results && googleRes.results.length > 0) {
+            searchResults = googleRes.results;
+            executedProvider = 'Google Search';
+            break;
+          } else {
+            console.warn('[SearchService] GoogleThis returned 0 results (likely blocked by Google on datacenter IP). Fallthrough...');
+          }
         } catch (error: any) {
           console.warn('[SearchService] GoogleThis provider failed:', error.message);
+        }
+      } else if (normalizedProvider === 'duckduckgo') {
+        try {
+          const ddgRes = await searchWithDuckDuckGo(query, requestedCount);
+          if (ddgRes.results && ddgRes.results.length > 0) {
+            searchResults = ddgRes.results;
+            executedProvider = 'DuckDuckGo Search';
+            break;
+          }
+        } catch (error: any) {
+          console.warn('[SearchService] DuckDuckGo provider failed:', error.message);
         }
       }
     }
 
+    // Ultimate fallback: If all external providers returned 0 results (e.g. strict IP block), try DuckDuckGo once more
     if (searchResults.length === 0) {
-      console.warn(`[SearchService] Task ${taskId}: No search provider returned results.`);
+      console.warn(`[SearchService] Task ${taskId}: Primary providers failed/blocked. Running emergency DuckDuckGo fallback...`);
+      try {
+        const ddgRes = await searchWithDuckDuckGo(query, requestedCount);
+        if (ddgRes.results && ddgRes.results.length > 0) {
+          searchResults = ddgRes.results;
+          executedProvider = 'DuckDuckGo Search (Fallback)';
+        }
+      } catch (e) {
+        console.error('[SearchService] Emergency fallback failed:', e);
+      }
     }
 
     // Save results to database
