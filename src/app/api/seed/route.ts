@@ -68,7 +68,13 @@ export async function POST() {
       const existing = await prisma.task.findFirst({ where: { title: kt.title, workspaceId } })
       if (!existing) {
         await prisma.task.create({
-          data: { ...kt, workspace: { connect: { id: workspaceId } }, assignee: { connect: { id: users['wang@company.com'].id } } } as any
+          data: {
+            title: kt.title,
+            status: kt.status,
+            priority: kt.priority,
+            workspace: { connect: { id: workspaceId } },
+            assignee: { connect: { id: users['wang@company.com'].id } },
+          } as any
         })
         tasksCreated++
       }
@@ -87,7 +93,15 @@ export async function POST() {
       const existing = await prisma.meeting.findFirst({ where: { title: mData.title, workspaceId } })
       if (!existing) {
         await prisma.meeting.create({
-          data: { ...mData, workspace: { connect: { id: workspaceId } }, createdBy: { connect: { id: users['admin@company.com'].id } }, actionItems: mData.actionItems || [] } as any
+          data: {
+            title: mData.title,
+            status: mData.status,
+            date: mData.date,
+            summary: mData.summary || null,
+            actionItems: mData.actionItems || [],
+            workspace: { connect: { id: workspaceId } },
+            createdBy: { connect: { id: users['admin@company.com'].id } },
+          } as any
         })
         meetingsCreated++
       }
