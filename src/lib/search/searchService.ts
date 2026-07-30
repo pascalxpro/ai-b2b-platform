@@ -3,7 +3,7 @@ import { getSystemSettings } from '@/lib/settings/settingsService';
 import { searchWithTavily, SearchProviderResult } from './providers/tavilyProvider';
 import { searchWithGoogleThis } from './providers/googleThisProvider';
 import { searchWithDuckDuckGo } from './providers/duckDuckGoProvider';
-import { searchWithBing } from './providers/bingProvider';
+import { searchWithYahoo } from './providers/yahooProvider';
 
 export async function executeSearchTask(taskId: string) {
   try {
@@ -16,7 +16,7 @@ export async function executeSearchTask(taskId: string) {
       data: { status: 'RUNNING', startedAt: new Date() },
     });
 
-    // Build comprehensive query from all criteria fields
+    // Build query
     const crit = (task.criteriaJson as any) || {};
     const countriesStr = Array.isArray(crit.countries) ? crit.countries.join(' ') : '';
     const industriesStr = Array.isArray(crit.industries) ? crit.industries.join(' ') : '';
@@ -36,11 +36,10 @@ export async function executeSearchTask(taskId: string) {
 
     // Load provider configuration & priority
     const settings = getSystemSettings();
-    let priorityList = settings.providerPriority || ['tavily', 'duckduckgo', 'googlethis'];
+    let priorityList = settings.providerPriority || ['tavily', 'duckduckgo', 'yahoo', 'googlethis'];
     
-    // Ensure duckduckgo and bing are available as fallback
     if (!priorityList.includes('duckduckgo')) priorityList.push('duckduckgo');
-    if (!priorityList.includes('bing')) priorityList.push('bing');
+    if (!priorityList.includes('yahoo')) priorityList.push('yahoo');
 
     const tavilyKeys = settings.tavilyApiKeys || '';
 
@@ -80,16 +79,16 @@ export async function executeSearchTask(taskId: string) {
         } catch (error: any) {
           console.warn('[SearchService] DuckDuckGo provider failed:', error.message);
         }
-      } else if (normalizedProvider === 'bing') {
+      } else if (normalizedProvider === 'yahoo') {
         try {
-          const bingRes = await searchWithBing(query, requestedCount);
-          if (bingRes.results && bingRes.results.length > 0) {
-            searchResults = bingRes.results;
-            executedProvider = 'Bing Search';
+          const yahooRes = await searchWithYahoo(query, requestedCount);
+          if (yahooRes.results && yahooRes.results.length > 0) {
+            searchResults = yahooRes.results;
+            executedProvider = 'Yahoo Search';
             break;
           }
         } catch (error: any) {
-          console.warn('[SearchService] Bing provider failed:', error.message);
+          console.warn('[SearchService] Yahoo provider failed:', error.message);
         }
       } else if (normalizedProvider === 'googlethis' || normalizedProvider === 'google') {
         try {
@@ -105,9 +104,22 @@ export async function executeSearchTask(taskId: string) {
       }
     }
 
-    // Ultimate fallback: Try DuckDuckGo POST if all priority providers returned 0
+    // Ultimate fallbacks if primary list yielded 0
     if (searchResults.length === 0) {
-      console.warn(`[SearchService] Task ${taskId}: Primary providers returned 0. Running DuckDuckGo POST fallback...`);
+      console.warn(`[SearchService] Task ${taskId}: Primary providers returned 0. Trying Yahoo Search fallback...`);
+      try {
+        const yahooRes = await searchWithYahoo(query, requestedCount);
+        if (yahooRes.results && yahooRes.results.length > 0) {
+          searchResults = yahooRes.results;
+          executedProvider = 'Yahoo Search (Fallback)';
+        }
+      } catch (e) {
+        console.error('[SearchService] Yahoo fallback failed:', e);
+      }
+    }
+
+    if (searchResults.length === 0) {
+      console.warn(`[SearchService] Task ${taskId}: Primary providers returned 0. Trying DuckDuckGo POST fallback...`);
       try {
         const ddgRes = await searchWithDuckDuckGo(query, requestedCount);
         if (ddgRes.results && ddgRes.results.length > 0) {
@@ -115,7 +127,7 @@ export async function executeSearchTask(taskId: string) {
           executedProvider = 'DuckDuckGo Search (Fallback)';
         }
       } catch (e) {
-        console.error('[SearchService] Emergency fallback failed:', e);
+        console.error('[SearchService] DDG fallback failed:', e);
       }
     }
 
