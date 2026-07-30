@@ -150,8 +150,8 @@ async function main() {
     { name: '日本食品包裝機械製造商', status: 'COMPLETED', targetCount: 50, priority: 1 },
     { name: '東南亞半導體設備經銷商', status: 'RUNNING', targetCount: 100, priority: 2 },
     { name: '歐洲有機食品進口商', status: 'COMPLETED', targetCount: 30, priority: 1 },
-    { name: '韓國化妝品 OEM 代工廠', status: SearchTaskStatus.DRAFT, targetCount: 200, priority: 0 },
-    { name: '印度 IT 服務外包商', status: SearchTaskStatus.QUEUED, targetCount: 50, priority: 1 },
+    { name: '韓國化妝品 OEM 代工廠', status: 'DRAFT', targetCount: 200, priority: 0 },
+    { name: '印度 IT 服務外包商', status: 'QUEUED', targetCount: 50, priority: 1 },
   ]
 
   const searchTasks: Record<string, any> = {}
@@ -186,8 +186,8 @@ async function main() {
             country: 'Japan',
             website: `https://japanpack${i}.co.jp`,
             sourceCount: Math.floor(Math.random() * 5) + 1,
-            qualityStatus: QualityStatus.NEW,
-            conversionStatus: ConversionStatus.NONE,
+            qualityStatus: 'NEW',
+            conversionStatus: 'NONE',
             scoreJson: { score: Math.floor(Math.random() * 40) + 60 }
           }
         })
@@ -204,7 +204,7 @@ async function main() {
     { title: '審核韓國化妝品名單', status: 'TODO', priority: 'LOW' },
     { title: '確認下週會議議程', status: 'TODO', priority: 'MEDIUM' },
     // IN_PROGRESS
-    { title: '分析東南亞半導體市場', status: 'IN_PROGRESS', priority: TaskPriority.URGENT },
+    { title: '分析東南亞半導體市場', status: 'IN_PROGRESS', priority: 'URGENT' },
     { title: '與 Jakarta FMCG 進行初步洽談', status: 'IN_PROGRESS', priority: 'HIGH' },
     { title: '更新產品介紹簡報', status: 'IN_PROGRESS', priority: 'MEDIUM' },
     { title: '追蹤歐洲有機食品進口商進度', status: 'IN_PROGRESS', priority: 'MEDIUM' },
@@ -234,10 +234,10 @@ async function main() {
 
   // 9. Meetings
   const meetingsData = [
-    { title: '日本市場開發策略會議', status: MeetingStatus.COMPLETED, date: new Date('2026-07-25T10:00:00Z'), summary: '討論日本包裝機械市場的切入點。', actionItems: [{ task: '整理前十名潛在客戶名單', owner: '王小明' }] },
-    { title: 'Q3 產品路徑圖同步', status: MeetingStatus.COMPLETED, date: new Date('2026-07-28T14:00:00Z'), summary: '確認 Q3 開發資源分配。', actionItems: [{ task: '更新 JIRA', owner: '系統管理員' }] },
-    { title: '東南亞半導體經銷商評估', status: MeetingStatus.PROCESSING, date: new Date('2026-07-30T09:00:00Z') },
-    { title: '韓國化妝品代工廠初步接洽', status: MeetingStatus.RECORDING, date: new Date() },
+    { title: '日本市場開發策略會議', status: 'COMPLETED', date: new Date('2026-07-25T10:00:00Z'), summary: '討論日本包裝機械市場的切入點。', actionItems: [{ task: '整理前十名潛在客戶名單', owner: '王小明' }] },
+    { title: 'Q3 產品路徑圖同步', status: 'COMPLETED', date: new Date('2026-07-28T14:00:00Z'), summary: '確認 Q3 開發資源分配。', actionItems: [{ task: '更新 JIRA', owner: '系統管理員' }] },
+    { title: '東南亞半導體經銷商評估', status: 'PROCESSING', date: new Date('2026-07-30T09:00:00Z') },
+    { title: '韓國化妝品代工廠初步接洽', status: 'RECORDING', date: new Date() },
     { title: '歐洲進口商合作提案審閱', status: 'SCHEDULED', date: new Date('2026-08-05T15:00:00Z') },
   ]
 
@@ -259,13 +259,13 @@ async function main() {
   const knowledgeData = [
     { title: '公司簡介 2026', type: 'DOCUMENT', content: '這是我們公司的詳細簡介，包含願景與使命。' },
     { title: 'B2B 智能平台產品手冊', type: 'PRODUCT', content: '平台功能詳解、API 串接指南。' },
-    { title: '常見客戶問答集 (FAQ)', type: KnowledgeItemType.FAQ, content: 'Q: 平台支援多國語言嗎？ A: 是的，目前支援中英文。' },
-    { title: '日本市場成功案例', type: KnowledgeItemType.CASE_STUDY, content: '如何協助 Tokyo Packaging 提升 30% 轉換率。' },
+    { title: '常見客戶問答集 (FAQ)', type: 'FAQ', content: 'Q: 平台支援多國語言嗎？ A: 是的，目前支援中英文。' },
+    { title: '日本市場成功案例', type: 'CASE_STUDY', content: '如何協助 Tokyo Packaging 提升 30% 轉換率。' },
     { title: '標準合作提案模板', type: 'TEMPLATE', content: '這是一份可用於向潛在客戶提案的標準模板。' },
     { title: '競爭者分析報告 - 2026 Q2', type: 'DOCUMENT', content: '市場上主要競爭對手的優劣勢分析。' },
     { title: '資料安全白皮書', type: 'DOCUMENT', content: '我們如何保護客戶的商業機密與隱私。' },
     { title: '東南亞市場進入策略', type: 'DOCUMENT', content: '針對東南亞各國的文化差異與商業習慣分析。' },
-    { title: 'API 整合常見問題', type: KnowledgeItemType.FAQ, content: 'Q: API 限制為何？ A: 每分鐘 1000 次請求。' },
+    { title: 'API 整合常見問題', type: 'FAQ', content: 'Q: API 限制為何？ A: 每分鐘 1000 次請求。' },
     { title: '客戶拜訪紀錄表模板', type: 'TEMPLATE', content: '業務外出拜訪時需填寫的標準表單。' },
     { title: '韓國化妝品市場概況', type: 'DOCUMENT', content: '2026 年韓國化妝品代工市場規模與趨勢。' },
     { title: '內部員工 onboarding 指南', type: 'DOCUMENT', content: '新進員工首週必讀事項。' },
@@ -279,7 +279,7 @@ async function main() {
           ...kd,
           workspaceId,
           visibility: 'WORKSPACE',
-          status: KnowledgeStatus.ACTIVE,
+          status: 'ACTIVE',
           createdById: users['wang@company.com'].id
         }
       })
@@ -294,7 +294,7 @@ async function main() {
       messages: [
         { role: 'USER', content: '請幫我列出日本前五大的包裝機械製造商。' },
         { role: 'ASSISTANT', content: '好的，正在為您搜尋日本包裝機械製造商的資料。' },
-        { role: MessageRole.TOOL, content: '{"action": "search", "query": "Japan packaging machinery manufacturers top 5"}' },
+        { role: 'TOOL', content: '{"action": "search", "query": "Japan packaging machinery manufacturers top 5"}' },
         { role: 'ASSISTANT', content: '根據最新資料，日本前五大包裝機械製造商包括：1. Tokyo Packaging Solutions 2. Osaka Pack... 您需要我將這些名單加入追蹤嗎？' },
         { role: 'USER', content: '是的，請幫我加入名單，並標記為高潛力。' },
         { role: 'ASSISTANT', content: '已將 5 家公司加入您的工作區名單，並標記相關分數。' },
@@ -305,7 +305,7 @@ async function main() {
       messages: [
         { role: 'USER', content: '幫我總結一下昨天關於韓國市場的會議紀錄。' },
         { role: 'ASSISTANT', content: '沒問題，我正在讀取昨天的會議紀錄。' },
-        { role: MessageRole.TOOL, content: '{"action": "get_meeting_summary", "date": "yesterday", "keyword": "韓國"}' },
+        { role: 'TOOL', content: '{"action": "get_meeting_summary", "date": "yesterday", "keyword": "韓國"}' },
         { role: 'ASSISTANT', content: '昨天的會議主要結論為：1. 優先鎖定首爾與釜山的代工廠。 2. 行銷材料需於下週前完成韓文翻譯。' },
         { role: 'USER', content: '太好了，幫我把第二點建立成一個待辦事項。' },
         { role: 'ASSISTANT', content: '已為您建立待辦事項：「完成行銷材料韓文翻譯」，優先級為高。' },
