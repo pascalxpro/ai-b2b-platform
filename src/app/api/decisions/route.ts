@@ -7,12 +7,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const workspaceId = searchParams.get('workspaceId');
     
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'workspaceId required' }, { status: 400 });
-    }
+    const where: any = {};
+    if (workspaceId) where.workspaceId = workspaceId;
     
     const decisions = await prisma.approval.findMany({
-      where: { workspaceId },
+      where,
       include: {
         requester: { select: { name: true } },
         approver: { select: { name: true } },

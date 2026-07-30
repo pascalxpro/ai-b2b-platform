@@ -7,12 +7,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const workspaceId = searchParams.get('workspaceId');
     
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'workspaceId required' }, { status: 400 });
-    }
+    const where: any = {};
+    if (workspaceId) where.workspaceId = workspaceId;
     
     const tasks = await prisma.searchTask.findMany({
-      where: { workspaceId },
+      where,
       include: {
         createdBy: { select: { name: true } },
         _count: { select: { searchResults: true } },

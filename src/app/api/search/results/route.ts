@@ -11,14 +11,11 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get('limit');
     const offsetParam = searchParams.get('offset');
     
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'workspaceId required' }, { status: 400 });
-    }
-    
     const limit = limitParam ? parseInt(limitParam, 10) : undefined;
     const offset = offsetParam ? parseInt(offsetParam, 10) : undefined;
     
-    const where: any = { workspaceId };
+    const where: any = {};
+    if (workspaceId) where.workspaceId = workspaceId;
     
     if (status) {
       // Treat status as qualityStatus for filtering

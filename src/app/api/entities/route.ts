@@ -9,11 +9,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status');
     const search = searchParams.get('search');
 
-    if (!workspaceId) {
-      return NextResponse.json({ error: 'workspaceId is required' }, { status: 400 });
-    }
-
-    const where: any = { workspaceId };
+    const where: any = {};
+    if (workspaceId) where.workspaceId = workspaceId;
     if (status) {
       where.status = status;
     }
