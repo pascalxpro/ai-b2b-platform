@@ -2,135 +2,96 @@ import { prisma } from '@/lib/db/prisma';
 import { getSystemSettings } from '@/lib/settings/settingsService';
 import { searchWithTavily, SearchProviderResult } from './providers/tavilyProvider';
 
-// Inline reliable Yahoo search - proven to work on Zeabur cloud IP 43.163.217.55
-async function inlineYahooSearch(query: string, targetCount: number): Promise<SearchProviderResult[]> {
-  console.log(`[InlineYahoo] Searching for: "${query}"`);
-  
+// Non-B2B domain blocklist
+const BLOCKLIST = [
+  'yahoo.com', 'uservoice.com', 'yimg.com', 'bing.com',
+  'google.com', 'google.co', 'googleapis.com', 'gstatic.com',
+  'wikipedia.org', 'wikimedia.org', 'wiktionary.org',
+  'youtube.com', 'youtu.be',
+  'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'linkedin.com', 'tiktok.com',
+  'reddit.com', 'pinterest.com', 'tumblr.com',
+  'amazon.com', 'amazon.co', 'ebay.com',
+  'tripadvisor.com', 'booking.com', 'expedia.com', 'kayak.com', 'kayak.co',
+  'hoponworld.com', 'japan-guide.com', 'japan.travel', 'jnto.go.jp',
+  'baidu.com', 'zhihu.com', 'weibo.com', 'qq.com',
+  'nytimes.com', 'reuters.com', 'bbc.com', 'cnn.com', 'usnews.com', 'upi.com',
+  'microsoft.com', 'apple.com', 'github.com', 'stackoverflow.com',
+  'cloudflare.com', 'akamai.com', 'fastly.net',
+  'wa.me', 'bit.ly', 't.co', 'goo.gl',
+];
+
+function isBlockedUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  if (BLOCKLIST.some(b => lower.includes(b))) return true;
+  if (/\.(jpg|jpeg|png|gif|svg|webp|mp4|pdf|css|js)(\?|$)/i.test(url)) return true;
+  return false;
+}
+
+// ─── Yahoo Search (proven stable on Zeabur cloud IP) ───
+async function searchYahoo(query: string, targetCount: number): Promise<SearchProviderResult[]> {
+  console.log(`[Yahoo] Searching: "${query}"`);
   try {
-    const url = `https://search.yahoo.com/search?p=${encodeURIComponent(query)}`;
-    const res = await fetch(url, {
+    const res = await fetch(`https://search.yahoo.com/search?p=${encodeURIComponent(query)}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
       },
     });
-
-    if (!res.ok) {
-      console.error(`[InlineYahoo] HTTP ${res.status}`);
-      return [];
-    }
+    if (!res.ok) return [];
 
     const html = await res.text();
-    console.log(`[InlineYahoo] Got HTML length: ${html.length}`);
-
     const results: SearchProviderResult[] = [];
     const seen = new Set<string>();
-
-    // Extract all encoded URLs from Yahoo redirect links
     const ruMatches = html.match(/https%3a%2f%2f[^"&\s]+/gi) || [];
-    console.log(`[InlineYahoo] Found ${ruMatches.length} raw URL matches`);
 
     for (const rawRu of ruMatches) {
       if (results.length >= targetCount) break;
-      
       let decoded = '';
-      try {
-        decoded = decodeURIComponent(rawRu);
-      } catch {
-        continue;
-      }
-      
-      // Remove Yahoo tracking suffix /RK=.../RS=...
+      try { decoded = decodeURIComponent(rawRu); } catch { continue; }
       decoded = decoded.split('/RK=')[0];
-      
-      // Skip non-B2B domains
-      if (!decoded.startsWith('http')) continue;
-      
-      const blocklist = [
-        'yahoo.com', 'uservoice.com', 'yimg.com', 'bing.com',
-        'google.com', 'google.co', 'googleapis.com', 'gstatic.com',
-        'wikipedia.org', 'wikimedia.org', 'wiktionary.org',
-        'youtube.com', 'youtu.be',
-        'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'linkedin.com', 'tiktok.com',
-        'reddit.com', 'pinterest.com', 'tumblr.com',
-        'amazon.com', 'amazon.co', 'ebay.com',
-        'tripadvisor.com', 'booking.com', 'expedia.com', 'kayak.com', 'kayak.co',
-        'hoponworld.com', 'japan-guide.com', 'japan.travel', 'jnto.go.jp',
-        'baidu.com', 'zhihu.com', 'weibo.com', 'qq.com',
-        'nytimes.com', 'reuters.com', 'bbc.com', 'cnn.com', 'usnews.com', 'upi.com',
-        'microsoft.com', 'apple.com', 'github.com', 'stackoverflow.com',
-        'cloudflare.com', 'akamai.com', 'fastly.net',
-        'wa.me', 'bit.ly', 't.co', 'goo.gl',
-      ];
-      
-      const urlLower = decoded.toLowerCase();
-      if (blocklist.some(blocked => urlLower.includes(blocked))) continue;
-      
-      // Skip image/video/asset URLs
-      if (/\.(jpg|jpeg|png|gif|svg|webp|mp4|pdf|css|js)(\?|$)/i.test(decoded)) continue;
-      
-      // Deduplicate
+      if (!decoded.startsWith('http') || isBlockedUrl(decoded)) continue;
       if (seen.has(decoded)) continue;
       seen.add(decoded);
 
-      // Extract hostname as company name
       let companyName = 'Enterprise';
-      try {
-        const hostname = new URL(decoded).hostname.replace('www.', '');
-        companyName = hostname;
-      } catch {}
-
-      results.push({
-        companyName,
-        website: decoded,
-        title: companyName,
-        snippet: companyName,
-      });
+      try { companyName = new URL(decoded).hostname.replace('www.', ''); } catch {}
+      results.push({ companyName, website: decoded, title: companyName, snippet: companyName });
     }
 
-    console.log(`[InlineYahoo] Extracted ${results.length} unique results`);
+    console.log(`[Yahoo] Found ${results.length} results`);
     return results;
-  } catch (error: any) {
-    console.error('[InlineYahoo] Failed:', error.message);
+  } catch (e: any) {
+    console.error('[Yahoo] Failed:', e.message);
     return [];
   }
 }
 
-// Inline DuckDuckGo POST search
-async function inlineDDGSearch(query: string, targetCount: number): Promise<SearchProviderResult[]> {
-  console.log(`[InlineDDG] Searching for: "${query}"`);
-  
+// ─── DuckDuckGo POST Search ───
+async function searchDDG(query: string, targetCount: number): Promise<SearchProviderResult[]> {
+  console.log(`[DDG] Searching: "${query}"`);
   try {
     const res = await fetch('https://html.duckduckgo.com/html/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept': 'text/html',
         'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
       },
       body: `q=${encodeURIComponent(query)}&b=`,
     });
 
     const html = await res.text();
-    console.log(`[InlineDDG] HTTP ${res.status}, HTML length: ${html.length}`);
-
     const results: SearchProviderResult[] = [];
-    const cleanHtml = (str: string) =>
-      str.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").trim();
+    const clean = (s: string) => s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;/g, "'").trim();
+    const regex = /<a [^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi;
+    let m: RegExpExecArray | null;
 
-    const resultRegex = /<a [^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi;
-    let match: RegExpExecArray | null;
-
-    while ((match = resultRegex.exec(html)) !== null && results.length < targetCount) {
-      let href = match[1];
-      const rawTitle = cleanHtml(match[2]);
-
-      // Skip ads
+    while ((m = regex.exec(html)) !== null && results.length < targetCount) {
+      let href = m[1];
+      const title = clean(m[2]);
       if (href.includes('duckduckgo.com/y.js') || href.includes('bing.com/aclick')) continue;
-
-      // Decode DDG redirect
       if (href.includes('uddg=')) {
         try {
           const u = new URL(href.startsWith('http') ? href : `https://duckduckgo.com${href}`);
@@ -138,35 +99,71 @@ async function inlineDDGSearch(query: string, targetCount: number): Promise<Sear
           if (uddg) href = uddg;
         } catch {}
       }
-
       if (href.startsWith('//')) href = `https:${href}`;
-      if (!href.startsWith('http') || href.includes('duckduckgo.com')) continue;
+      if (!href.startsWith('http') || href.includes('duckduckgo.com') || isBlockedUrl(href)) continue;
 
-      let companyName = rawTitle.split('-')[0].split('|')[0].split(':')[0].trim();
-      if (companyName.length > 60) companyName = companyName.substring(0, 60);
-
-      results.push({
-        companyName: companyName || rawTitle,
-        website: href,
-        title: rawTitle,
-        snippet: rawTitle,
-      });
+      let name = title.split('-')[0].split('|')[0].split(':')[0].trim();
+      if (name.length > 60) name = name.substring(0, 60);
+      results.push({ companyName: name || title, website: href, title, snippet: title });
     }
 
-    console.log(`[InlineDDG] Found ${results.length} results`);
+    console.log(`[DDG] Found ${results.length} results`);
     return results;
-  } catch (error: any) {
-    console.error('[InlineDDG] Failed:', error.message);
+  } catch (e: any) {
+    console.error('[DDG] Failed:', e.message);
     return [];
   }
 }
 
+// ─── Bing Scraper Search ───
+async function searchBing(query: string, targetCount: number): Promise<SearchProviderResult[]> {
+  console.log(`[Bing] Searching: "${query}"`);
+  try {
+    const res = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=zh-TW`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+      },
+    });
+    if (!res.ok) return [];
+
+    const html = await res.text();
+    const results: SearchProviderResult[] = [];
+    const seen = new Set<string>();
+    // Bing organic results: <h2><a href="https://..." ...>Title</a></h2>
+    const regex = /<h2[^>]*>\s*<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>(.*?)<\/a>/gi;
+    let m: RegExpExecArray | null;
+    const clean = (s: string) => s.replace(/<[^>]+>/g, '').trim();
+
+    while ((m = regex.exec(html)) !== null && results.length < targetCount) {
+      const href = m[1];
+      const title = clean(m[2]);
+      if (!href.startsWith('http') || isBlockedUrl(href)) continue;
+      if (seen.has(href)) continue;
+      seen.add(href);
+
+      let name = title.split('-')[0].split('|')[0].split(':')[0].trim();
+      if (name.length > 60) name = name.substring(0, 60);
+      results.push({ companyName: name || title, website: href, title, snippet: title });
+    }
+
+    console.log(`[Bing] Found ${results.length} results`);
+    return results;
+  } catch (e: any) {
+    console.error('[Bing] Failed:', e.message);
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Main search execution: ALL engines search, results are MERGED
+// ═══════════════════════════════════════════════════════════════
 export async function executeSearchTask(taskId: string) {
   try {
     const task = await prisma.searchTask.findUnique({ where: { id: taskId } });
     if (!task) throw new Error('Task not found');
 
-    // Update status to RUNNING
     await prisma.searchTask.update({
       where: { id: taskId },
       data: { status: 'RUNNING', startedAt: new Date() },
@@ -181,19 +178,15 @@ export async function executeSearchTask(taskId: string) {
 
     const queryParts = [
       task.queryText || crit.queryText || '',
-      countriesStr,
-      industriesStr,
-      keywordsStr,
-      companyTypesStr
+      countriesStr, industriesStr, keywordsStr, companyTypesStr,
     ].filter(Boolean);
 
     const fullQuery = queryParts.join(' ').trim();
     const requestedCount = crit.targetCount || task.targetCount || 10;
 
-    // Also create a shorter focused query for backup
+    // Shorter focused query for additional coverage
     const shortQuery = [
-      countriesStr || '',
-      keywordsStr || industriesStr || '',
+      countriesStr, keywordsStr || industriesStr,
       companyTypesStr ? companyTypesStr.split(' ')[0] : '',
     ].filter(Boolean).join(' ').trim() || fullQuery;
 
@@ -201,74 +194,104 @@ export async function executeSearchTask(taskId: string) {
     console.log(`[SearchService] Full query: "${fullQuery}"`);
     console.log(`[SearchService] Short query: "${shortQuery}"`);
 
-    // Load settings
     const settings = getSystemSettings();
     const tavilyKeys = settings.tavilyApiKeys || '';
 
-    let searchResults: SearchProviderResult[] = [];
-    let executedProvider = '';
+    // ──────────────────────────────────────────
+    // Run ALL search engines in PARALLEL, merge
+    // ──────────────────────────────────────────
+    const providerPromises: { name: string; promise: Promise<SearchProviderResult[]> }[] = [];
 
-    // Strategy 1: Try Tavily if API keys exist
+    // Tavily (if API keys configured)
     if (tavilyKeys && tavilyKeys.trim()) {
-      try {
-        console.log('[SearchService] Trying Tavily...');
-        const tavilyRes = await searchWithTavily(fullQuery, requestedCount, tavilyKeys);
-        if (tavilyRes.results && tavilyRes.results.length > 0) {
-          searchResults = tavilyRes.results;
-          executedProvider = 'Tavily AI';
+      providerPromises.push({
+        name: 'Tavily AI',
+        promise: searchWithTavily(fullQuery, requestedCount, tavilyKeys)
+          .then(r => r.results || [])
+          .catch(e => { console.warn('[Tavily] Failed:', e.message); return []; }),
+      });
+    }
+
+    // DuckDuckGo (full + short query)
+    providerPromises.push({
+      name: 'DuckDuckGo',
+      promise: searchDDG(fullQuery, requestedCount).catch(() => []),
+    });
+    if (shortQuery !== fullQuery) {
+      providerPromises.push({
+        name: 'DuckDuckGo',
+        promise: searchDDG(shortQuery, requestedCount).catch(() => []),
+      });
+    }
+
+    // Yahoo (full + short query)
+    providerPromises.push({
+      name: 'Yahoo Search',
+      promise: searchYahoo(fullQuery, requestedCount).catch(() => []),
+    });
+    if (shortQuery !== fullQuery) {
+      providerPromises.push({
+        name: 'Yahoo Search',
+        promise: searchYahoo(shortQuery, requestedCount).catch(() => []),
+      });
+    }
+
+    // Bing (full + short query)
+    providerPromises.push({
+      name: 'Bing Search',
+      promise: searchBing(fullQuery, requestedCount).catch(() => []),
+    });
+    if (shortQuery !== fullQuery) {
+      providerPromises.push({
+        name: 'Bing Search',
+        promise: searchBing(shortQuery, requestedCount).catch(() => []),
+      });
+    }
+
+    // Wait for ALL providers to complete
+    const providerResults = await Promise.allSettled(
+      providerPromises.map(p => p.promise)
+    );
+
+    // Merge and deduplicate results from all providers
+    const mergedMap = new Map<string, { result: SearchProviderResult; provider: string }>();
+    
+    for (let i = 0; i < providerResults.length; i++) {
+      const outcome = providerResults[i];
+      const providerName = providerPromises[i].name;
+      
+      if (outcome.status === 'fulfilled' && outcome.value.length > 0) {
+        console.log(`[SearchService] ${providerName} returned ${outcome.value.length} results`);
+        for (const item of outcome.value) {
+          if (!item.website || !item.companyName) continue;
+          
+          // Deduplicate by hostname
+          let hostname = '';
+          try { hostname = new URL(item.website).hostname.replace('www.', ''); } catch { continue; }
+          
+          if (!mergedMap.has(hostname)) {
+            mergedMap.set(hostname, { result: item, provider: providerName });
+          } else {
+            // If this provider has a better company name (not just hostname), update it
+            const existing = mergedMap.get(hostname)!;
+            if (item.companyName !== hostname && existing.result.companyName === hostname) {
+              mergedMap.set(hostname, { result: item, provider: providerName });
+            }
+          }
         }
-      } catch (e: any) {
-        console.warn('[SearchService] Tavily failed:', e.message);
+      } else if (outcome.status === 'rejected') {
+        console.warn(`[SearchService] ${providerName} rejected:`, outcome.reason);
+      } else {
+        console.log(`[SearchService] ${providerName} returned 0 results`);
       }
     }
 
-    // Strategy 2: DuckDuckGo POST (may fail on cloud IPs)
-    if (searchResults.length === 0) {
-      console.log('[SearchService] Trying DuckDuckGo POST...');
-      const ddgResults = await inlineDDGSearch(fullQuery, requestedCount);
-      if (ddgResults.length > 0) {
-        searchResults = ddgResults;
-        executedProvider = 'DuckDuckGo';
-      }
-    }
+    const allResults = Array.from(mergedMap.values());
+    console.log(`[SearchService] Total merged unique results: ${allResults.length}`);
 
-    // Strategy 3: Yahoo with full query
-    if (searchResults.length === 0) {
-      console.log('[SearchService] Trying Yahoo (full query)...');
-      const yahooResults = await inlineYahooSearch(fullQuery, requestedCount);
-      if (yahooResults.length > 0) {
-        searchResults = yahooResults;
-        executedProvider = 'Yahoo Search';
-      }
-    }
-
-    // Strategy 4: Yahoo with short focused query (different results)
-    if (searchResults.length === 0 && shortQuery !== fullQuery) {
-      console.log('[SearchService] Trying Yahoo (short query)...');
-      const yahooResults = await inlineYahooSearch(shortQuery, requestedCount);
-      if (yahooResults.length > 0) {
-        searchResults = yahooResults;
-        executedProvider = 'Yahoo Search (Short)';
-      }
-    }
-
-    // Strategy 5: DuckDuckGo with short query
-    if (searchResults.length === 0 && shortQuery !== fullQuery) {
-      console.log('[SearchService] Trying DuckDuckGo (short query)...');
-      const ddgResults = await inlineDDGSearch(shortQuery, requestedCount);
-      if (ddgResults.length > 0) {
-        searchResults = ddgResults;
-        executedProvider = 'DuckDuckGo (Short)';
-      }
-    }
-
-    console.log(`[SearchService] Provider [${executedProvider || 'NONE'}] returned ${searchResults.length} results.`);
-
-    // Save results to database
+    // Save ALL results to database
     let savedCount = 0;
-    for (const item of searchResults) {
-      if (!item.website || !item.companyName) continue;
-
+    for (const { result: item, provider } of allResults) {
       const existing = await prisma.searchResult.findFirst({
         where: { searchTaskId: taskId, website: item.website },
       });
@@ -287,7 +310,7 @@ export async function executeSearchTask(taskId: string) {
             scoreJson: {
               title: item.title,
               description: item.snippet,
-              provider: executedProvider,
+              provider,
             },
           },
         });
@@ -295,13 +318,14 @@ export async function executeSearchTask(taskId: string) {
       }
     }
 
-    // Update task status to COMPLETED
+    // Update task status
     await prisma.searchTask.update({
       where: { id: taskId },
       data: { status: 'COMPLETED' },
     });
 
-    console.log(`[SearchService] Task ${taskId} COMPLETED via [${executedProvider}]. Saved ${savedCount} results.`);
+    const providerSummary = [...new Set(allResults.map(r => r.provider))].join(', ');
+    console.log(`[SearchService] Task ${taskId} COMPLETED. Providers: [${providerSummary}]. Saved ${savedCount} unique results.`);
   } catch (error: any) {
     console.error(`[SearchService] Task ${taskId} FAILED:`, error);
     await prisma.searchTask.update({
