@@ -3,6 +3,7 @@ import { getSystemSettings } from '@/lib/settings/settingsService';
 import { searchWithTavily, SearchProviderResult } from './providers/tavilyProvider';
 import { searchWithGoogleThis } from './providers/googleThisProvider';
 import { searchWithDuckDuckGo } from './providers/duckDuckGoProvider';
+import { searchWithBing } from './providers/bingProvider';
 
 export async function executeSearchTask(taskId: string) {
   try {
@@ -15,19 +16,31 @@ export async function executeSearchTask(taskId: string) {
       data: { status: 'RUNNING', startedAt: new Date() },
     });
 
-    // Build query
-    const keywords = (task.criteriaJson as any)?.keywords?.join(' ') || '';
-    const query = `${task.queryText || ''} ${keywords}`.trim();
-    const requestedCount = (task.criteriaJson as any)?.targetCount || task.targetCount || 10;
+    // Build comprehensive query from all criteria fields
+    const crit = (task.criteriaJson as any) || {};
+    const countriesStr = Array.isArray(crit.countries) ? crit.countries.join(' ') : '';
+    const industriesStr = Array.isArray(crit.industries) ? crit.industries.join(' ') : '';
+    const keywordsStr = Array.isArray(crit.keywords) ? crit.keywords.join(' ') : '';
+    const companyTypesStr = Array.isArray(crit.companyTypes) ? crit.companyTypes.join(' ') : '';
+
+    const queryParts = [
+      task.queryText || crit.queryText || '',
+      countriesStr,
+      industriesStr,
+      keywordsStr,
+      companyTypesStr
+    ].filter(Boolean);
+
+    const query = queryParts.join(' ').trim();
+    const requestedCount = crit.targetCount || task.targetCount || 10;
 
     // Load provider configuration & priority
     const settings = getSystemSettings();
-    let priorityList = settings.providerPriority || ['tavily', 'googlethis', 'duckduckgo'];
+    let priorityList = settings.providerPriority || ['tavily', 'duckduckgo', 'googlethis'];
     
-    // Ensure duckduckgo is in priority list as ultimate fallback
-    if (!priorityList.includes('duckduckgo')) {
-      priorityList.push('duckduckgo');
-    }
+    // Ensure duckduckgo and bing are available as fallback
+    if (!priorityList.includes('duckduckgo')) priorityList.push('duckduckgo');
+    if (!priorityList.includes('bing')) priorityList.push('bing');
 
     const tavilyKeys = settings.tavilyApiKeys || '';
 
@@ -56,19 +69,6 @@ export async function executeSearchTask(taskId: string) {
         } catch (error: any) {
           console.warn('[SearchService] Tavily provider failed or all keys exhausted:', error.message);
         }
-      } else if (normalizedProvider === 'googlethis' || normalizedProvider === 'google') {
-        try {
-          const googleRes = await searchWithGoogleThis(query, requestedCount);
-          if (googleRes.results && googleRes.results.length > 0) {
-            searchResults = googleRes.results;
-            executedProvider = 'Google Search';
-            break;
-          } else {
-            console.warn('[SearchService] GoogleThis returned 0 results (likely blocked by Google on datacenter IP). Fallthrough...');
-          }
-        } catch (error: any) {
-          console.warn('[SearchService] GoogleThis provider failed:', error.message);
-        }
       } else if (normalizedProvider === 'duckduckgo') {
         try {
           const ddgRes = await searchWithDuckDuckGo(query, requestedCount);
@@ -80,12 +80,34 @@ export async function executeSearchTask(taskId: string) {
         } catch (error: any) {
           console.warn('[SearchService] DuckDuckGo provider failed:', error.message);
         }
+      } else if (normalizedProvider === 'bing') {
+        try {
+          const bingRes = await searchWithBing(query, requestedCount);
+          if (bingRes.results && bingRes.results.length > 0) {
+            searchResults = bingRes.results;
+            executedProvider = 'Bing Search';
+            break;
+          }
+        } catch (error: any) {
+          console.warn('[SearchService] Bing provider failed:', error.message);
+        }
+      } else if (normalizedProvider === 'googlethis' || normalizedProvider === 'google') {
+        try {
+          const googleRes = await searchWithGoogleThis(query, requestedCount);
+          if (googleRes.results && googleRes.results.length > 0) {
+            searchResults = googleRes.results;
+            executedProvider = 'Google Search';
+            break;
+          }
+        } catch (error: any) {
+          console.warn('[SearchService] GoogleThis provider failed:', error.message);
+        }
       }
     }
 
-    // Ultimate fallback: If all external providers returned 0 results (e.g. strict IP block), try DuckDuckGo once more
+    // Ultimate fallback: Try DuckDuckGo POST if all priority providers returned 0
     if (searchResults.length === 0) {
-      console.warn(`[SearchService] Task ${taskId}: Primary providers failed/blocked. Running emergency DuckDuckGo fallback...`);
+      console.warn(`[SearchService] Task ${taskId}: Primary providers returned 0. Running DuckDuckGo POST fallback...`);
       try {
         const ddgRes = await searchWithDuckDuckGo(query, requestedCount);
         if (ddgRes.results && ddgRes.results.length > 0) {
