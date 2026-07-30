@@ -32,20 +32,26 @@ function SearchResultsContent() {
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
-          setResults(data.map((d: any) => ({
-            id: d.id,
-            name: d.companyName || d.name || '未知',
-            localName: d.companyName || '',
-            country: d.country || '未知',
-            industry: '未知產業',
-            companyType: '未知類型',
-            qualityScore: d.scoreJson ? JSON.parse(d.scoreJson).totalScore || 70 : 70,
-            qualityStatus: d.qualityStatus || 'NEW',
-            conversionStatus: d.conversionStatus || 'NONE',
-            sourceCount: 1,
-            website: d.website || '',
-            createdAt: d.createdAt
-          })));
+          setResults(data.map((d: any) => {
+            let scoreObj = d.scoreJson;
+            if (typeof scoreObj === 'string') {
+              try { scoreObj = JSON.parse(scoreObj); } catch (e) { scoreObj = {}; }
+            }
+            return {
+              id: d.id,
+              name: d.companyName || d.name || '未知',
+              localName: d.companyName || '',
+              country: d.country || '未知',
+              industry: '未知產業',
+              companyType: '未知類型',
+              qualityScore: scoreObj?.totalScore || 75,
+              qualityStatus: d.qualityStatus || 'NEW',
+              conversionStatus: d.conversionStatus || 'NONE',
+              sourceCount: 1,
+              website: d.website || '',
+              createdAt: d.createdAt
+            };
+          }));
         }
         setLoading(false);
       })
