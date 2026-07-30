@@ -24,9 +24,29 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const saved = await prisma.savedSearch.create({ data: body });
+    
+    // For demo/prototype, use the first workspace and user if not provided via auth session
+    const defaultWorkspace = await prisma.workspace.findFirst();
+    const defaultUser = await prisma.user.findFirst();
+    
+    if (!defaultWorkspace || !defaultUser) {
+      throw new Error("No default workspace or user found");
+    }
+
+    const { name, criteria } = body;
+    
+    const saved = await prisma.savedSearch.create({ 
+      data: {
+        name: name || '未命名儲存條件',
+        workspaceId: defaultWorkspace.id,
+        ownerUserId: defaultUser.id,
+        criteriaJson: criteria || {}
+      } 
+    });
+    
     return NextResponse.json(saved, { status: 201 });
   } catch (error: any) {
+    console.error('Error in POST /api/search/saved:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

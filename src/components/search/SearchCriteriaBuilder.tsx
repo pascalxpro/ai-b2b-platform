@@ -127,6 +127,35 @@ export default function SearchCriteriaBuilder({
     }
   };
 
+  const handleSave = async () => {
+    try {
+      const response = await fetch('/api/search/saved', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: description || '未命名儲存條件',
+          criteria: {
+            queryText: description,
+            countries,
+            industries,
+            keywords,
+            companyTypes,
+            targetCount
+          }
+        })
+      });
+
+      if (response.ok) {
+        alert('條件已儲存！');
+      } else {
+        alert('儲存失敗，請重試。');
+      }
+    } catch (error) {
+      console.error('Failed to save criteria', error);
+      alert('儲存失敗，請重試。');
+    }
+  };
+
   const handleReset = () => {
     setDescription('');
     setCountries([]);
@@ -264,7 +293,7 @@ export default function SearchCriteriaBuilder({
           <button className={`${styles.btn} ${styles.btnGhost}`} onClick={handleReset}>
             重設
           </button>
-          <button className={`${styles.btn} ${styles.btnSecondary}`}>
+          <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={handleSave}>
             儲存條件
           </button>
           <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleSubmit}>

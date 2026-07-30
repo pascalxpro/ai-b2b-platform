@@ -29,22 +29,37 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    // Default status is usually DRAFT or QUEUED, let's set to QUEUED
+    
+    // For demo/prototype, use the first workspace and user if not provided via auth session
+    const defaultWorkspace = await prisma.workspace.findFirst();
+    const defaultUser = await prisma.user.findFirst();
+    
+    if (!defaultWorkspace || !defaultUser) {
+      throw new Error("No default workspace or user found");
+    }
+
+    const { name, criteria, autoStart } = body;
+    
     const task = await prisma.searchTask.create({ 
       data: {
-        ...body,
+        name: name || '未命名搜尋',
+        workspaceId: defaultWorkspace.id,
+        createdById: defaultUser.id,
+        queryText: criteria?.queryText || '',
+        criteriaJson: criteria || {},
+        targetCount: criteria?.targetCount || 50,
         status: 'QUEUED'
       } 
     });
     
     // Execute search asynchronously
-    if (body.autoStart) {
-      // Not waiting for it to finish to return the response quickly
+    if (autoStart) {
       executeSearchTask(task.id).catch(console.error);
     }
     
     return NextResponse.json(task, { status: 201 });
   } catch (error: any) {
+    console.error('Error in POST /api/search/tasks:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
