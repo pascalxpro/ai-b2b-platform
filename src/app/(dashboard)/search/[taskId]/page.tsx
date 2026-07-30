@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { XCircle, List, RefreshCw } from 'lucide-react';
+import { XCircle, List, RefreshCw, RotateCw } from 'lucide-react';
 import styles from './page.module.css';
 
 export default function SearchTaskDetailPage() {
@@ -144,6 +144,24 @@ export default function SearchTaskDetailPage() {
           >
             <List size={20} />
             查看所有搜尋結果 ({foundCount})
+          </button>
+          <button 
+            className={`${styles.btn} ${styles.btnWarning || styles.btnPrimary}`}
+            style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none' }}
+            onClick={async () => {
+              if (!confirm('確定要重新執行此搜尋任務嗎？舊的搜尋結果將會被清除並重新抓取。')) return;
+              try {
+                const res = await fetch(`/api/search/tasks/${taskId}`, { method: 'POST' });
+                if (res.ok) {
+                  setTask((prev: any) => ({ ...prev, status: 'QUEUED', searchResults: [] }));
+                }
+              } catch (err) {
+                console.error('Re-run failed', err);
+              }
+            }}
+          >
+            <RotateCw size={18} />
+            重新執行搜尋
           </button>
           <button className={`${styles.btn} ${styles.btnGhost}`} onClick={fetchTaskDetails}>
             <RefreshCw size={18} />

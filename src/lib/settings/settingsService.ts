@@ -14,7 +14,7 @@ function getDefaultSettings(): SystemSettings {
   const envKeys = process.env.TAVILY_API_KEYS || process.env.TAVILY_API_KEY || '';
   const envPriority = process.env.SEARCH_PROVIDER_PRIORITY
     ? process.env.SEARCH_PROVIDER_PRIORITY.split(',').map(p => p.trim()).filter(Boolean)
-    : ['tavily', 'googlethis'];
+    : ['duckduckgo', 'yahoo', 'tavily', 'googlethis'];
 
   return {
     tavilyApiKeys: envKeys,
