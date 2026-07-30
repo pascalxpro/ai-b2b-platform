@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { executeSearchTask } from '@/lib/search/searchService';
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +29,20 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const task = await prisma.searchTask.create({ data: body });
+    // Default status is usually DRAFT or QUEUED, let's set to QUEUED
+    const task = await prisma.searchTask.create({ 
+      data: {
+        ...body,
+        status: 'QUEUED'
+      } 
+    });
+    
+    // Execute search asynchronously
+    if (body.autoStart) {
+      // Not waiting for it to finish to return the response quickly
+      executeSearchTask(task.id).catch(console.error);
+    }
+    
     return NextResponse.json(task, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
