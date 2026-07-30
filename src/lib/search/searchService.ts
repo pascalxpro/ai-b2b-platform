@@ -1,5 +1,7 @@
-import google from 'googlethis';
 import { prisma } from '@/lib/db/prisma';
+import { getSystemSettings } from '@/lib/settings/settingsService';
+import { searchWithTavily, SearchProviderResult } from './providers/tavilyProvider';
+import { searchWithGoogleThis } from './providers/googleThisProvider';
 
 export async function executeSearchTask(taskId: string) {
   try {
@@ -9,40 +11,66 @@ export async function executeSearchTask(taskId: string) {
     // Update status to RUNNING
     await prisma.searchTask.update({
       where: { id: taskId },
-      data: { status: 'RUNNING' }
+      data: { status: 'RUNNING' },
     });
 
-    // Build the query
+    // Build query
     const keywords = (task.criteriaJson as any)?.keywords?.join(' ') || '';
-    const query = `${task.queryText} ${keywords}`.trim();
+    const query = `${task.queryText || ''} ${keywords}`.trim();
+    const requestedCount = (task.criteriaJson as any)?.targetCount || task.targetCount || 10;
 
-    // Configure search options
-    const options = {
-      page: 0,
-      safe: false,
-      additional_params: {
-        hl: 'zh-TW',
+    // Load provider configuration & priority
+    const settings = getSystemSettings();
+    const priorityList = settings.providerPriority || ['tavily', 'googlethis'];
+    const tavilyKeys = settings.tavilyApiKeys || '';
+
+    console.log(`[SearchService] Task ${taskId} executing. Query: "${query}". Provider Priority:`, priorityList);
+
+    let searchResults: SearchProviderResult[] = [];
+    let executedProvider = '';
+
+    // Iterate through priority list
+    for (const provider of priorityList) {
+      const normalizedProvider = provider.toLowerCase().trim();
+
+      if (normalizedProvider === 'tavily') {
+        if (!tavilyKeys || !tavilyKeys.trim()) {
+          console.log('[SearchService] Tavily is in priority list, but no Tavily API keys configured. Skipping...');
+          continue;
+        }
+
+        try {
+          const tavilyRes = await searchWithTavily(query, requestedCount, tavilyKeys);
+          searchResults = tavilyRes.results;
+          executedProvider = 'Tavily';
+          if (searchResults.length > 0) break; // Successfully got results
+        } catch (error: any) {
+          console.warn('[SearchService] Tavily provider failed or all keys exhausted:', error.message);
+          // Fall through to next provider in priority
+        }
+      } else if (normalizedProvider === 'googlethis' || normalizedProvider === 'google') {
+        try {
+          const googleRes = await searchWithGoogleThis(query, requestedCount);
+          searchResults = googleRes.results;
+          executedProvider = 'GoogleThis (Scraper)';
+          if (searchResults.length > 0) break; // Successfully got results
+        } catch (error: any) {
+          console.warn('[SearchService] GoogleThis provider failed:', error.message);
+        }
       }
-    };
+    }
 
-    // Perform the search
-    const response = await google.search(query, options);
+    if (searchResults.length === 0) {
+      console.warn(`[SearchService] Task ${taskId}: No search provider returned results.`);
+    }
 
-    // Save results
+    // Save results to database
     let savedCount = 0;
-    const targetCount = Math.min((task.criteriaJson as any)?.targetCount || 10, response.results.length);
+    for (const item of searchResults) {
+      if (!item.website || !item.companyName) continue;
 
-    for (let i = 0; i < targetCount; i++) {
-      const result = response.results[i];
-      if (!result.url || !result.title) continue;
-
-      // Extract a plausible company name from title
-      let companyName = result.title.split('-')[0].split('|')[0].trim();
-      if (companyName.length > 50) companyName = companyName.substring(0, 50);
-
-      // Check if it already exists to avoid duplicates
       const existing = await prisma.searchResult.findFirst({
-        where: { searchTaskId: taskId, website: result.url }
+        where: { searchTaskId: taskId, website: item.website },
       });
 
       if (!existing) {
@@ -50,34 +78,35 @@ export async function executeSearchTask(taskId: string) {
           data: {
             searchTaskId: taskId,
             workspaceId: task.workspaceId,
-            companyName: companyName,
-            website: result.url,
-            country: 'Unknown', // Need more advanced scraping/AI to determine
+            companyName: item.companyName,
+            website: item.website,
+            country: 'Unknown',
             sourceCount: 1,
             qualityStatus: 'NEW',
             conversionStatus: 'NONE',
-            scoreJson: { 
-              title: result.title,
-              description: result.description 
-            } // Storing raw snippet here temporarily for background research
-          }
+            scoreJson: {
+              title: item.title,
+              description: item.snippet,
+              provider: executedProvider,
+            },
+          },
         });
         savedCount++;
       }
     }
 
-    // Update status to COMPLETED
+    // Update task status to COMPLETED
     await prisma.searchTask.update({
       where: { id: taskId },
-      data: { status: 'COMPLETED' }
+      data: { status: 'COMPLETED' },
     });
 
-    console.log(`Task ${taskId} completed. Saved ${savedCount} results.`);
-  } catch (error) {
-    console.error(`Error executing search task ${taskId}:`, error);
+    console.log(`[SearchService] Task ${taskId} COMPLETED via provider [${executedProvider}]. Saved ${savedCount} results.`);
+  } catch (error: any) {
+    console.error(`[SearchService] Task ${taskId} FAILED:`, error);
     await prisma.searchTask.update({
       where: { id: taskId },
-      data: { status: 'FAILED' }
+      data: { status: 'FAILED' },
     });
   }
 }

@@ -23,7 +23,16 @@ export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Settings State
+  const [tavilyApiKeys, setTavilyApiKeys] = useState('');
+  const [providerPriorityMode, setProviderPriorityMode] = useState<'tavily_first' | 'googlethis_first'>('tavily_first');
+  const [maxSearchLimit, setMaxSearchLimit] = useState(50);
+  const [defaultTargetCount, setDefaultTargetCount] = useState(100);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState('');
+
   useEffect(() => {
+    // Fetch users
     fetch('/api/users')
       .then(r => r.json())
       .then(data => {
@@ -43,7 +52,59 @@ export default function AdminPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+
+    // Fetch System Settings
+    fetch('/api/admin/settings')
+      .then(r => r.json())
+      .then(data => {
+        if (data) {
+          if (data.tavilyApiKeys !== undefined) setTavilyApiKeys(data.tavilyApiKeys);
+          if (Array.isArray(data.providerPriority)) {
+            if (data.providerPriority[0] === 'googlethis') {
+              setProviderPriorityMode('googlethis_first');
+            } else {
+              setProviderPriorityMode('tavily_first');
+            }
+          }
+          if (data.maxSearchLimit) setMaxSearchLimit(data.maxSearchLimit);
+          if (data.defaultTargetCount) setDefaultTargetCount(data.defaultTargetCount);
+        }
+      })
+      .catch(console.error);
   }, []);
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    setSaveSuccessMessage('');
+    try {
+      const providerPriority = providerPriorityMode === 'tavily_first'
+        ? ['tavily', 'googlethis']
+        : ['googlethis', 'tavily'];
+
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tavilyApiKeys,
+          providerPriority,
+          maxSearchLimit,
+          defaultTargetCount
+        })
+      });
+
+      if (res.ok) {
+        setSaveSuccessMessage('設定已成功儲存！');
+        setTimeout(() => setSaveSuccessMessage(''), 3000);
+      } else {
+        alert('儲存失敗');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('儲存失敗');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   return (
     <div className={styles.container}>
@@ -65,7 +126,7 @@ export default function AdminPage() {
           className={`${styles.tab} ${activeTab === 'providers' ? styles.activeTab : ''}`}
           onClick={() => setActiveTab('providers')}
         >
-          Provider 管理
+          Provider 與 API Key 管理
         </button>
         <button 
           className={`${styles.tab} ${activeTab === 'settings' ? styles.activeTab : ''}`}
@@ -132,40 +193,71 @@ export default function AdminPage() {
           </>
         )}
 
-        {/* Tab 2: Providers */}
+        {/* Tab 2: Providers & API Keys */}
         {activeTab === 'providers' && (
-          <div className={styles.providerGrid}>
-            <p style={{ padding: '20px' }}>無提供者資料</p>
+          <div className={styles.settingsGrid}>
+            <div className={`${styles.settingsCard} glass-2`}>
+              <h3 className={styles.settingsTitle}>Tavily API Key 設定 (多組備援)</h3>
+              <div className={styles.formGroup}>
+                <div className={styles.formRow} style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px' }}>
+                  <div>
+                    <div className={styles.label}>Tavily API Keys</div>
+                    <div className={styles.desc}>
+                      支援設定多組 Key。當第一組 Key 額度用完 (429/Quota Limit) 後，系統將自動倒退使用下一組 Key。
+                      <br />
+                      <strong>格式：</strong>以半形逗號 <code>,</code> 分隔多組 API Key (例如：<code>tvly-Key1, tvly-Key2, tvly-Key3</code>)
+                    </div>
+                  </div>
+                  <textarea 
+                    className={styles.inputField} 
+                    style={{ width: '100%', minHeight: '90px', fontFamily: 'monospace' }}
+                    placeholder="tvly-xxxxxxxxxxxx, tvly-yyyyyyy"
+                    value={tavilyApiKeys}
+                    onChange={e => setTavilyApiKeys(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className={`${styles.settingsCard} glass-2`}>
+              <h3 className={styles.settingsTitle}>搜尋平台優先順序設定</h3>
+              <div className={styles.formGroup}>
+                <div className={styles.formRow}>
+                  <div>
+                    <div className={styles.label}>搜尋引擎優先調用順序</div>
+                    <div className={styles.desc}>選擇搜尋任務執行時，系統嘗試搜尋平台的優先順序</div>
+                  </div>
+                  <select 
+                    className={styles.inputField}
+                    value={providerPriorityMode}
+                    onChange={e => setProviderPriorityMode(e.target.value as any)}
+                  >
+                    <option value="tavily_first">1. Tavily AI Search  ➜  2. GoogleThis (免費爬蟲)</option>
+                    <option value="googlethis_first">1. GoogleThis (免費爬蟲)  ➜  2. Tavily AI Search</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {saveSuccessMessage && (
+              <div style={{ color: '#10b981', fontWeight: 600, padding: '8px 0' }}>
+                {saveSuccessMessage}
+              </div>
+            )}
+
+            <button 
+              className={`${styles.primaryBtn} ${styles.saveBtn}`} 
+              onClick={handleSaveSettings}
+              disabled={savingSettings}
+            >
+              {savingSettings ? '儲存中...' : '儲存 Provider 設定'}
+            </button>
           </div>
         )}
 
         {/* Tab 3: Settings */}
         {activeTab === 'settings' && (
           <div className={styles.settingsGrid}>
-            <div className={`${styles.settingsCard} glass-2`}>
-              <h3 className={styles.settingsTitle}>一般設定</h3>
-              <div className={styles.formGroup}>
-                <div className={styles.formRow}>
-                  <div>
-                    <div className={styles.label}>平台名稱</div>
-                    <div className={styles.desc}>顯示於左上角與登入頁面</div>
-                  </div>
-                  <input type="text" className={styles.inputField} defaultValue="AI B2B Intelligence Platform" />
-                </div>
-                <div className={styles.formRow}>
-                  <div>
-                    <div className={styles.label}>預設語言</div>
-                    <div className={styles.desc}>新使用者的預設介面語言</div>
-                  </div>
-                  <select className={styles.inputField}>
-                    <option>繁體中文</option>
-                    <option>English</option>
-                    <option>日本語</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
             <div className={`${styles.settingsCard} glass-2`}>
               <h3 className={styles.settingsTitle}>搜尋與分析設定</h3>
               <div className={styles.formGroup}>
@@ -174,40 +266,72 @@ export default function AdminPage() {
                     <div className={styles.label}>每次搜尋上限</div>
                     <div className={styles.desc}>單次深度搜尋可抓取的頁面數</div>
                   </div>
-                  <input type="number" className={styles.inputField} defaultValue="50" />
+                  <input 
+                    type="number" 
+                    className={styles.inputField} 
+                    value={maxSearchLimit}
+                    onChange={e => setMaxSearchLimit(Number(e.target.value))} 
+                  />
                 </div>
                 <div className={styles.formRow}>
                   <div>
                     <div className={styles.label}>預設目標數量</div>
                     <div className={styles.desc}>建立潛在客戶清單時的預設尋找數量</div>
                   </div>
-                  <input type="number" className={styles.inputField} defaultValue="100" />
+                  <input 
+                    type="number" 
+                    className={styles.inputField} 
+                    value={defaultTargetCount}
+                    onChange={e => setDefaultTargetCount(Number(e.target.value))} 
+                  />
                 </div>
               </div>
             </div>
 
             <div className={`${styles.settingsCard} glass-2`}>
-              <h3 className={styles.settingsTitle}>通知設定</h3>
+              <h3 className={styles.settingsTitle}>搜尋平台與 Key 快速設定</h3>
               <div className={styles.formGroup}>
-                <div className={styles.formRow}>
+                <div className={styles.formRow} style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px' }}>
                   <div>
-                    <div className={styles.label}>Email 系統通知</div>
-                    <div className={styles.desc}>接收系統狀態與錯誤報告</div>
+                    <div className={styles.label}>Tavily API Keys (多組以逗號分隔)</div>
                   </div>
-                  <ToggleRight size={28} className={`${styles.toggle} ${styles.toggleActive}`} />
+                  <input 
+                    type="text"
+                    className={styles.inputField} 
+                    style={{ width: '100%', fontFamily: 'monospace' }}
+                    placeholder="tvly-Key1, tvly-Key2"
+                    value={tavilyApiKeys}
+                    onChange={e => setTavilyApiKeys(e.target.value)}
+                  />
                 </div>
                 <div className={styles.formRow}>
                   <div>
-                    <div className={styles.label}>Telegram 機器人通知</div>
-                    <div className={styles.desc}>發送任務完成通知至群組</div>
+                    <div className={styles.label}>搜尋引擎優先順序</div>
                   </div>
-                  <ToggleLeft size={28} className={styles.toggle} />
+                  <select 
+                    className={styles.inputField}
+                    value={providerPriorityMode}
+                    onChange={e => setProviderPriorityMode(e.target.value as any)}
+                  >
+                    <option value="tavily_first">1. Tavily AI Search  ➜  2. GoogleThis (免費爬蟲)</option>
+                    <option value="googlethis_first">1. GoogleThis (免費爬蟲)  ➜  2. Tavily AI Search</option>
+                  </select>
                 </div>
               </div>
             </div>
 
-            <button className={`${styles.primaryBtn} ${styles.saveBtn}`} onClick={() => alert('設定已儲存（Demo）')}>
-              儲存設定
+            {saveSuccessMessage && (
+              <div style={{ color: '#10b981', fontWeight: 600, padding: '8px 0' }}>
+                {saveSuccessMessage}
+              </div>
+            )}
+
+            <button 
+              className={`${styles.primaryBtn} ${styles.saveBtn}`} 
+              onClick={handleSaveSettings}
+              disabled={savingSettings}
+            >
+              {savingSettings ? '儲存中...' : '儲存系統設定'}
             </button>
           </div>
         )}
