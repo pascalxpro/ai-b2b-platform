@@ -1,17 +1,26 @@
-import { PrismaClient, UserStatus, WorkspaceType, WorkspaceStatus, WorkspaceRole, MemberStatus, BusinessEntityStatus, SearchTaskStatus, QualityStatus, ConversionStatus, TaskPriority, TaskStatus, MeetingStatus, KnowledgeItemType, KnowledgeVisibility, KnowledgeStatus, ConversationStatus, MessageRole, ApprovalStatus } from '@prisma/client'
+import 'dotenv/config'
+import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { Pool } from 'pg'
 
-const prisma = new PrismaClient()
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) {
+  throw new Error('DATABASE_URL is not set')
+}
+const pool = new Pool({ connectionString })
+const adapter = new PrismaPg(pool)
+const prisma = new PrismaClient({ adapter })
 
 async function main() {
   console.log('Starting seed...')
 
   // 1. Users
   const usersData = [
-    { email: 'admin@company.com', name: '系統管理員', status: UserStatus.ACTIVE, paletteId: 'amethyst' },
-    { email: 'wang@company.com', name: '王小明', status: UserStatus.ACTIVE, paletteId: 'blue' },
-    { email: 'lee@company.com', name: '李美玲', status: UserStatus.ACTIVE, paletteId: 'green' },
-    { email: 'chen@company.com', name: '陳志豪', status: UserStatus.ACTIVE, paletteId: 'orange' },
-    { email: 'lin@company.com', name: '林雅婷', status: UserStatus.ACTIVE, paletteId: 'pink' },
+    { email: 'admin@company.com', name: '系統管理員', status: 'ACTIVE', paletteId: 'amethyst' },
+    { email: 'wang@company.com', name: '王小明', status: 'ACTIVE', paletteId: 'blue' },
+    { email: 'lee@company.com', name: '李美玲', status: 'ACTIVE', paletteId: 'green' },
+    { email: 'chen@company.com', name: '陳志豪', status: 'ACTIVE', paletteId: 'orange' },
+    { email: 'lin@company.com', name: '林雅婷', status: 'ACTIVE', paletteId: 'pink' },
   ]
 
   const users: Record<string, any> = {}
@@ -26,21 +35,21 @@ async function main() {
 
   // 2. Workspaces
   const workspacesData = [
-    { name: '營一部', type: WorkspaceType.DEPARTMENT, sortOrder: 1 },
-    { name: '營二部', type: WorkspaceType.DEPARTMENT, sortOrder: 2 },
-    { name: '營三部', type: WorkspaceType.DEPARTMENT, sortOrder: 3 },
-    { name: '行銷企劃', type: WorkspaceType.DEPARTMENT, sortOrder: 4 },
-    { name: '專案', type: WorkspaceType.PROJECT, sortOrder: 5 },
-    { name: '系統', type: WorkspaceType.SYSTEM, sortOrder: 99, description: '系統設定與共用資源' },
+    { name: '營一部', type: 'DEPARTMENT', sortOrder: 1 },
+    { name: '營二部', type: 'DEPARTMENT', sortOrder: 2 },
+    { name: '營三部', type: 'DEPARTMENT', sortOrder: 3 },
+    { name: '行銷企劃', type: 'DEPARTMENT', sortOrder: 4 },
+    { name: '專案', type: 'PROJECT', sortOrder: 5 },
+    { name: '系統', type: 'SYSTEM', sortOrder: 99, description: '系統設定與共用資源' },
   ]
 
   const workspaces: Record<string, any> = {}
   for (const wData of workspacesData) {
     let workspace = await prisma.workspace.findFirst({ where: { name: wData.name } })
     if (!workspace) {
-      workspace = await prisma.workspace.create({ data: { ...wData, status: WorkspaceStatus.ACTIVE } })
+      workspace = await prisma.workspace.create({ data: { ...wData, status: 'ACTIVE' } })
     } else {
-      workspace = await prisma.workspace.update({ where: { id: workspace.id }, data: { ...wData, status: WorkspaceStatus.ACTIVE } })
+      workspace = await prisma.workspace.update({ where: { id: workspace.id }, data: { ...wData, status: 'ACTIVE' } })
     }
     workspaces[wData.name] = workspace
 
@@ -48,25 +57,25 @@ async function main() {
     // Add admin to all
     await prisma.workspaceMember.upsert({
       where: { workspaceId_userId: { workspaceId: workspace.id, userId: users['admin@company.com'].id } },
-      update: { role: WorkspaceRole.ADMIN, status: MemberStatus.ACTIVE },
-      create: { workspaceId: workspace.id, userId: users['admin@company.com'].id, role: WorkspaceRole.ADMIN, status: MemberStatus.ACTIVE }
+      update: { role: 'ADMIN', status: 'ACTIVE' },
+      create: { workspaceId: workspace.id, userId: users['admin@company.com'].id, role: 'ADMIN', status: 'ACTIVE' }
     })
   }
   
   // Assign others to workspaces
   const assignments = [
-    { email: 'wang@company.com', ws: '營一部', role: WorkspaceRole.MANAGER },
-    { email: 'lee@company.com', ws: '營二部', role: WorkspaceRole.MANAGER },
-    { email: 'chen@company.com', ws: '營三部', role: WorkspaceRole.MANAGER },
-    { email: 'lin@company.com', ws: '行銷企劃', role: WorkspaceRole.MANAGER },
-    { email: 'wang@company.com', ws: '專案', role: WorkspaceRole.MEMBER },
+    { email: 'wang@company.com', ws: '營一部', role: 'MANAGER' },
+    { email: 'lee@company.com', ws: '營二部', role: 'MANAGER' },
+    { email: 'chen@company.com', ws: '營三部', role: 'MANAGER' },
+    { email: 'lin@company.com', ws: '行銷企劃', role: 'MANAGER' },
+    { email: 'wang@company.com', ws: '專案', role: 'MEMBER' },
   ]
 
   for (const a of assignments) {
     await prisma.workspaceMember.upsert({
       where: { workspaceId_userId: { workspaceId: workspaces[a.ws].id, userId: users[a.email].id } },
-      update: { role: a.role, status: MemberStatus.ACTIVE },
-      create: { workspaceId: workspaces[a.ws].id, userId: users[a.email].id, role: a.role, status: MemberStatus.ACTIVE }
+      update: { role: a.role, status: 'ACTIVE' },
+      create: { workspaceId: workspaces[a.ws].id, userId: users[a.email].id, role: a.role, status: 'ACTIVE' }
     })
   }
   console.log('Workspaces & Members ready.')
@@ -75,21 +84,21 @@ async function main() {
 
   // 4. BusinessEntities
   const entitiesData = [
-    { name: 'Tokyo Packaging Solutions', country: 'Japan', city: 'Tokyo', industry: 'Machinery', companyType: 'Manufacturer', website: 'https://tokyopackaging.co.jp', email: 'contact@tokyopackaging.co.jp', status: BusinessEntityStatus.AI_REVIEWED },
-    { name: 'Osaka Auto Parts', country: 'Japan', city: 'Osaka', industry: 'Automotive', companyType: 'Manufacturer', website: 'https://osaka-auto.jp', email: 'info@osaka-auto.jp', status: BusinessEntityStatus.VALID },
-    { name: 'Kyoto Robotics', country: 'Japan', city: 'Kyoto', industry: 'Robotics', companyType: 'R&D', website: 'https://kyotorobotics.jp', email: 'hello@kyotorobotics.jp', status: BusinessEntityStatus.NEW },
-    { name: 'Seoul Cosmetics', country: 'South Korea', city: 'Seoul', industry: 'Cosmetics', companyType: 'OEM', website: 'https://seoulcosmetics.kr', email: 'biz@seoulcosmetics.kr', status: BusinessEntityStatus.PENDING_REVIEW },
-    { name: 'Busan Tech', country: 'South Korea', city: 'Busan', industry: 'Electronics', companyType: 'Manufacturer', website: 'https://busantech.kr', email: 'sales@busantech.kr', status: BusinessEntityStatus.VALID },
-    { name: 'Incheon Logistics', country: 'South Korea', city: 'Incheon', industry: 'Logistics', companyType: 'Service Provider', website: 'https://incheonlogistics.kr', email: 'support@incheonlogistics.kr', status: BusinessEntityStatus.NEW },
-    { name: 'Singapore Semiconductor Distributors', country: 'Singapore', city: 'Singapore', industry: 'Semiconductor', companyType: 'Distributor', website: 'https://singaporesemi.sg', email: 'contact@singaporesemi.sg', status: BusinessEntityStatus.VALID },
-    { name: 'KL Tech Hub', country: 'Malaysia', city: 'Kuala Lumpur', industry: 'IT', companyType: 'Service', website: 'https://kltechhub.my', email: 'info@kltechhub.my', status: BusinessEntityStatus.AI_REVIEWED },
-    { name: 'Jakarta FMCG', country: 'Indonesia', city: 'Jakarta', industry: 'FMCG', companyType: 'Distributor', website: 'https://jakartafmcg.id', email: 'sales@jakartafmcg.id', status: BusinessEntityStatus.VALID },
-    { name: 'Bangkok Textiles', country: 'Thailand', city: 'Bangkok', industry: 'Textiles', companyType: 'Manufacturer', website: 'https://bangkoktextiles.th', email: 'contact@bangkoktextiles.th', status: BusinessEntityStatus.NEW },
-    { name: 'Manila BPO', country: 'Philippines', city: 'Manila', industry: 'BPO', companyType: 'Outsourcing', website: 'https://manilabpo.ph', email: 'hello@manilabpo.ph', status: BusinessEntityStatus.PENDING_REVIEW },
-    { name: 'Hanoi Softworks', country: 'Vietnam', city: 'Hanoi', industry: 'Software', companyType: 'Development', website: 'https://hanoisoftworks.vn', email: 'dev@hanoisoftworks.vn', status: BusinessEntityStatus.VALID },
-    { name: 'Mumbai IT Outsourcing', country: 'India', city: 'Mumbai', industry: 'IT Services', companyType: 'Outsourcing', website: 'https://mumbai-it.in', email: 'business@mumbai-it.in', status: BusinessEntityStatus.VALID },
-    { name: 'Berlin Organic Foods', country: 'Germany', city: 'Berlin', industry: 'Food & Beverage', companyType: 'Importer', website: 'https://berlinorganic.de', email: 'import@berlinorganic.de', status: BusinessEntityStatus.AI_REVIEWED },
-    { name: 'Paris Gourmet Imports', country: 'France', city: 'Paris', industry: 'Food & Beverage', companyType: 'Importer', website: 'https://parisgourmet.fr', email: 'contact@parisgourmet.fr', status: BusinessEntityStatus.VALID },
+    { name: 'Tokyo Packaging Solutions', country: 'Japan', city: 'Tokyo', industry: 'Machinery', companyType: 'Manufacturer', website: 'https://tokyopackaging.co.jp', email: 'contact@tokyopackaging.co.jp', status: 'AI_REVIEWED' },
+    { name: 'Osaka Auto Parts', country: 'Japan', city: 'Osaka', industry: 'Automotive', companyType: 'Manufacturer', website: 'https://osaka-auto.jp', email: 'info@osaka-auto.jp', status: 'VALID' },
+    { name: 'Kyoto Robotics', country: 'Japan', city: 'Kyoto', industry: 'Robotics', companyType: 'R&D', website: 'https://kyotorobotics.jp', email: 'hello@kyotorobotics.jp', status: 'NEW' },
+    { name: 'Seoul Cosmetics', country: 'South Korea', city: 'Seoul', industry: 'Cosmetics', companyType: 'OEM', website: 'https://seoulcosmetics.kr', email: 'biz@seoulcosmetics.kr', status: 'PENDING_REVIEW' },
+    { name: 'Busan Tech', country: 'South Korea', city: 'Busan', industry: 'Electronics', companyType: 'Manufacturer', website: 'https://busantech.kr', email: 'sales@busantech.kr', status: 'VALID' },
+    { name: 'Incheon Logistics', country: 'South Korea', city: 'Incheon', industry: 'Logistics', companyType: 'Service Provider', website: 'https://incheonlogistics.kr', email: 'support@incheonlogistics.kr', status: 'NEW' },
+    { name: 'Singapore Semiconductor Distributors', country: 'Singapore', city: 'Singapore', industry: 'Semiconductor', companyType: 'Distributor', website: 'https://singaporesemi.sg', email: 'contact@singaporesemi.sg', status: 'VALID' },
+    { name: 'KL Tech Hub', country: 'Malaysia', city: 'Kuala Lumpur', industry: 'IT', companyType: 'Service', website: 'https://kltechhub.my', email: 'info@kltechhub.my', status: 'AI_REVIEWED' },
+    { name: 'Jakarta FMCG', country: 'Indonesia', city: 'Jakarta', industry: 'FMCG', companyType: 'Distributor', website: 'https://jakartafmcg.id', email: 'sales@jakartafmcg.id', status: 'VALID' },
+    { name: 'Bangkok Textiles', country: 'Thailand', city: 'Bangkok', industry: 'Textiles', companyType: 'Manufacturer', website: 'https://bangkoktextiles.th', email: 'contact@bangkoktextiles.th', status: 'NEW' },
+    { name: 'Manila BPO', country: 'Philippines', city: 'Manila', industry: 'BPO', companyType: 'Outsourcing', website: 'https://manilabpo.ph', email: 'hello@manilabpo.ph', status: 'PENDING_REVIEW' },
+    { name: 'Hanoi Softworks', country: 'Vietnam', city: 'Hanoi', industry: 'Software', companyType: 'Development', website: 'https://hanoisoftworks.vn', email: 'dev@hanoisoftworks.vn', status: 'VALID' },
+    { name: 'Mumbai IT Outsourcing', country: 'India', city: 'Mumbai', industry: 'IT Services', companyType: 'Outsourcing', website: 'https://mumbai-it.in', email: 'business@mumbai-it.in', status: 'VALID' },
+    { name: 'Berlin Organic Foods', country: 'Germany', city: 'Berlin', industry: 'Food & Beverage', companyType: 'Importer', website: 'https://berlinorganic.de', email: 'import@berlinorganic.de', status: 'AI_REVIEWED' },
+    { name: 'Paris Gourmet Imports', country: 'France', city: 'Paris', industry: 'Food & Beverage', companyType: 'Importer', website: 'https://parisgourmet.fr', email: 'contact@parisgourmet.fr', status: 'VALID' },
   ]
 
   // Clear existing entities to prevent duplicates if running multiple times (or just rely on finding by name)
@@ -138,9 +147,9 @@ async function main() {
 
   // 6. SearchTasks
   const tasksData = [
-    { name: '日本食品包裝機械製造商', status: SearchTaskStatus.COMPLETED, targetCount: 50, priority: 1 },
-    { name: '東南亞半導體設備經銷商', status: SearchTaskStatus.RUNNING, targetCount: 100, priority: 2 },
-    { name: '歐洲有機食品進口商', status: SearchTaskStatus.COMPLETED, targetCount: 30, priority: 1 },
+    { name: '日本食品包裝機械製造商', status: 'COMPLETED', targetCount: 50, priority: 1 },
+    { name: '東南亞半導體設備經銷商', status: 'RUNNING', targetCount: 100, priority: 2 },
+    { name: '歐洲有機食品進口商', status: 'COMPLETED', targetCount: 30, priority: 1 },
     { name: '韓國化妝品 OEM 代工廠', status: SearchTaskStatus.DRAFT, targetCount: 200, priority: 0 },
     { name: '印度 IT 服務外包商', status: SearchTaskStatus.QUEUED, targetCount: 50, priority: 1 },
   ]
@@ -190,23 +199,23 @@ async function main() {
   // 8. Tasks (Kanban)
   const kanbanTasks = [
     // TODO
-    { title: '準備 Q3 亞洲市場分析報告', status: TaskStatus.TODO, priority: TaskPriority.HIGH },
-    { title: '聯繫 Tokyo Packaging Solutions', status: TaskStatus.TODO, priority: TaskPriority.MEDIUM },
-    { title: '審核韓國化妝品名單', status: TaskStatus.TODO, priority: TaskPriority.LOW },
-    { title: '確認下週會議議程', status: TaskStatus.TODO, priority: TaskPriority.MEDIUM },
+    { title: '準備 Q3 亞洲市場分析報告', status: 'TODO', priority: 'HIGH' },
+    { title: '聯繫 Tokyo Packaging Solutions', status: 'TODO', priority: 'MEDIUM' },
+    { title: '審核韓國化妝品名單', status: 'TODO', priority: 'LOW' },
+    { title: '確認下週會議議程', status: 'TODO', priority: 'MEDIUM' },
     // IN_PROGRESS
-    { title: '分析東南亞半導體市場', status: TaskStatus.IN_PROGRESS, priority: TaskPriority.URGENT },
-    { title: '與 Jakarta FMCG 進行初步洽談', status: TaskStatus.IN_PROGRESS, priority: TaskPriority.HIGH },
-    { title: '更新產品介紹簡報', status: TaskStatus.IN_PROGRESS, priority: TaskPriority.MEDIUM },
-    { title: '追蹤歐洲有機食品進口商進度', status: TaskStatus.IN_PROGRESS, priority: TaskPriority.MEDIUM },
+    { title: '分析東南亞半導體市場', status: 'IN_PROGRESS', priority: TaskPriority.URGENT },
+    { title: '與 Jakarta FMCG 進行初步洽談', status: 'IN_PROGRESS', priority: 'HIGH' },
+    { title: '更新產品介紹簡報', status: 'IN_PROGRESS', priority: 'MEDIUM' },
+    { title: '追蹤歐洲有機食品進口商進度', status: 'IN_PROGRESS', priority: 'MEDIUM' },
     // DONE
-    { title: '建立日本市場初期名單', status: TaskStatus.DONE, priority: TaskPriority.HIGH },
-    { title: '完成 Q2 銷售總結', status: TaskStatus.DONE, priority: TaskPriority.MEDIUM },
-    { title: '發送產品型錄給 Osaka Auto Parts', status: TaskStatus.DONE, priority: TaskPriority.LOW },
-    { title: '系統帳號權限盤點', status: TaskStatus.DONE, priority: TaskPriority.MEDIUM },
+    { title: '建立日本市場初期名單', status: 'DONE', priority: 'HIGH' },
+    { title: '完成 Q2 銷售總結', status: 'DONE', priority: 'MEDIUM' },
+    { title: '發送產品型錄給 Osaka Auto Parts', status: 'DONE', priority: 'LOW' },
+    { title: '系統帳號權限盤點', status: 'DONE', priority: 'MEDIUM' },
     // CANCELLED
-    { title: '取消印度市場實地考察', status: TaskStatus.CANCELLED, priority: TaskPriority.LOW },
-    { title: '暫緩菲律賓 BPO 合作案', status: TaskStatus.CANCELLED, priority: TaskPriority.LOW },
+    { title: '取消印度市場實地考察', status: 'CANCELLED', priority: 'LOW' },
+    { title: '暫緩菲律賓 BPO 合作案', status: 'CANCELLED', priority: 'LOW' },
   ]
 
   for (const kt of kanbanTasks) {
@@ -229,7 +238,7 @@ async function main() {
     { title: 'Q3 產品路徑圖同步', status: MeetingStatus.COMPLETED, date: new Date('2026-07-28T14:00:00Z'), summary: '確認 Q3 開發資源分配。', actionItems: [{ task: '更新 JIRA', owner: '系統管理員' }] },
     { title: '東南亞半導體經銷商評估', status: MeetingStatus.PROCESSING, date: new Date('2026-07-30T09:00:00Z') },
     { title: '韓國化妝品代工廠初步接洽', status: MeetingStatus.RECORDING, date: new Date() },
-    { title: '歐洲進口商合作提案審閱', status: MeetingStatus.SCHEDULED, date: new Date('2026-08-05T15:00:00Z') },
+    { title: '歐洲進口商合作提案審閱', status: 'SCHEDULED', date: new Date('2026-08-05T15:00:00Z') },
   ]
 
   for (const md of meetingsData) {
@@ -248,18 +257,18 @@ async function main() {
 
   // 10. KnowledgeItems
   const knowledgeData = [
-    { title: '公司簡介 2026', type: KnowledgeItemType.DOCUMENT, content: '這是我們公司的詳細簡介，包含願景與使命。' },
-    { title: 'B2B 智能平台產品手冊', type: KnowledgeItemType.PRODUCT, content: '平台功能詳解、API 串接指南。' },
+    { title: '公司簡介 2026', type: 'DOCUMENT', content: '這是我們公司的詳細簡介，包含願景與使命。' },
+    { title: 'B2B 智能平台產品手冊', type: 'PRODUCT', content: '平台功能詳解、API 串接指南。' },
     { title: '常見客戶問答集 (FAQ)', type: KnowledgeItemType.FAQ, content: 'Q: 平台支援多國語言嗎？ A: 是的，目前支援中英文。' },
     { title: '日本市場成功案例', type: KnowledgeItemType.CASE_STUDY, content: '如何協助 Tokyo Packaging 提升 30% 轉換率。' },
-    { title: '標準合作提案模板', type: KnowledgeItemType.TEMPLATE, content: '這是一份可用於向潛在客戶提案的標準模板。' },
-    { title: '競爭者分析報告 - 2026 Q2', type: KnowledgeItemType.DOCUMENT, content: '市場上主要競爭對手的優劣勢分析。' },
-    { title: '資料安全白皮書', type: KnowledgeItemType.DOCUMENT, content: '我們如何保護客戶的商業機密與隱私。' },
-    { title: '東南亞市場進入策略', type: KnowledgeItemType.DOCUMENT, content: '針對東南亞各國的文化差異與商業習慣分析。' },
+    { title: '標準合作提案模板', type: 'TEMPLATE', content: '這是一份可用於向潛在客戶提案的標準模板。' },
+    { title: '競爭者分析報告 - 2026 Q2', type: 'DOCUMENT', content: '市場上主要競爭對手的優劣勢分析。' },
+    { title: '資料安全白皮書', type: 'DOCUMENT', content: '我們如何保護客戶的商業機密與隱私。' },
+    { title: '東南亞市場進入策略', type: 'DOCUMENT', content: '針對東南亞各國的文化差異與商業習慣分析。' },
     { title: 'API 整合常見問題', type: KnowledgeItemType.FAQ, content: 'Q: API 限制為何？ A: 每分鐘 1000 次請求。' },
-    { title: '客戶拜訪紀錄表模板', type: KnowledgeItemType.TEMPLATE, content: '業務外出拜訪時需填寫的標準表單。' },
-    { title: '韓國化妝品市場概況', type: KnowledgeItemType.DOCUMENT, content: '2026 年韓國化妝品代工市場規模與趨勢。' },
-    { title: '內部員工 onboarding 指南', type: KnowledgeItemType.DOCUMENT, content: '新進員工首週必讀事項。' },
+    { title: '客戶拜訪紀錄表模板', type: 'TEMPLATE', content: '業務外出拜訪時需填寫的標準表單。' },
+    { title: '韓國化妝品市場概況', type: 'DOCUMENT', content: '2026 年韓國化妝品代工市場規模與趨勢。' },
+    { title: '內部員工 onboarding 指南', type: 'DOCUMENT', content: '新進員工首週必讀事項。' },
   ]
 
   for (const kd of knowledgeData) {
@@ -269,7 +278,7 @@ async function main() {
         data: {
           ...kd,
           workspaceId,
-          visibility: KnowledgeVisibility.WORKSPACE,
+          visibility: 'WORKSPACE',
           status: KnowledgeStatus.ACTIVE,
           createdById: users['wang@company.com'].id
         }
@@ -283,23 +292,23 @@ async function main() {
     {
       channel: 'web',
       messages: [
-        { role: MessageRole.USER, content: '請幫我列出日本前五大的包裝機械製造商。' },
-        { role: MessageRole.ASSISTANT, content: '好的，正在為您搜尋日本包裝機械製造商的資料。' },
+        { role: 'USER', content: '請幫我列出日本前五大的包裝機械製造商。' },
+        { role: 'ASSISTANT', content: '好的，正在為您搜尋日本包裝機械製造商的資料。' },
         { role: MessageRole.TOOL, content: '{"action": "search", "query": "Japan packaging machinery manufacturers top 5"}' },
-        { role: MessageRole.ASSISTANT, content: '根據最新資料，日本前五大包裝機械製造商包括：1. Tokyo Packaging Solutions 2. Osaka Pack... 您需要我將這些名單加入追蹤嗎？' },
-        { role: MessageRole.USER, content: '是的，請幫我加入名單，並標記為高潛力。' },
-        { role: MessageRole.ASSISTANT, content: '已將 5 家公司加入您的工作區名單，並標記相關分數。' },
+        { role: 'ASSISTANT', content: '根據最新資料，日本前五大包裝機械製造商包括：1. Tokyo Packaging Solutions 2. Osaka Pack... 您需要我將這些名單加入追蹤嗎？' },
+        { role: 'USER', content: '是的，請幫我加入名單，並標記為高潛力。' },
+        { role: 'ASSISTANT', content: '已將 5 家公司加入您的工作區名單，並標記相關分數。' },
       ]
     },
     {
       channel: 'web',
       messages: [
-        { role: MessageRole.USER, content: '幫我總結一下昨天關於韓國市場的會議紀錄。' },
-        { role: MessageRole.ASSISTANT, content: '沒問題，我正在讀取昨天的會議紀錄。' },
+        { role: 'USER', content: '幫我總結一下昨天關於韓國市場的會議紀錄。' },
+        { role: 'ASSISTANT', content: '沒問題，我正在讀取昨天的會議紀錄。' },
         { role: MessageRole.TOOL, content: '{"action": "get_meeting_summary", "date": "yesterday", "keyword": "韓國"}' },
-        { role: MessageRole.ASSISTANT, content: '昨天的會議主要結論為：1. 優先鎖定首爾與釜山的代工廠。 2. 行銷材料需於下週前完成韓文翻譯。' },
-        { role: MessageRole.USER, content: '太好了，幫我把第二點建立成一個待辦事項。' },
-        { role: MessageRole.ASSISTANT, content: '已為您建立待辦事項：「完成行銷材料韓文翻譯」，優先級為高。' },
+        { role: 'ASSISTANT', content: '昨天的會議主要結論為：1. 優先鎖定首爾與釜山的代工廠。 2. 行銷材料需於下週前完成韓文翻譯。' },
+        { role: 'USER', content: '太好了，幫我把第二點建立成一個待辦事項。' },
+        { role: 'ASSISTANT', content: '已為您建立待辦事項：「完成行銷材料韓文翻譯」，優先級為高。' },
       ]
     }
   ]
@@ -317,7 +326,7 @@ async function main() {
           workspaceId,
           userId: users['wang@company.com'].id,
           channel: cData.channel,
-          status: ConversationStatus.ACTIVE,
+          status: 'ACTIVE',
         }
       })
 
@@ -336,11 +345,11 @@ async function main() {
 
   // 12. Approvals
   const approvalsData = [
-    { actionType: 'BUDGET_REQUEST', reason: '申請擴大日本市場調查預算', status: ApprovalStatus.PENDING },
-    { actionType: 'DATA_EXPORT', reason: '匯出 Q2 潛在客戶名單給外部合作夥伴', status: ApprovalStatus.PENDING },
-    { actionType: 'CAMPAIGN_LAUNCH', reason: '啟動東南亞電子報行銷活動', status: ApprovalStatus.PENDING },
-    { actionType: 'CONTRACT_SIGN', reason: '與 Tokyo Packaging Solutions 簽署 NDA', status: ApprovalStatus.APPROVED },
-    { actionType: 'PURCHASE', reason: '購買新的產業分析報告', status: ApprovalStatus.REJECTED },
+    { actionType: 'BUDGET_REQUEST', reason: '申請擴大日本市場調查預算', status: 'PENDING' },
+    { actionType: 'DATA_EXPORT', reason: '匯出 Q2 潛在客戶名單給外部合作夥伴', status: 'PENDING' },
+    { actionType: 'CAMPAIGN_LAUNCH', reason: '啟動東南亞電子報行銷活動', status: 'PENDING' },
+    { actionType: 'CONTRACT_SIGN', reason: '與 Tokyo Packaging Solutions 簽署 NDA', status: 'APPROVED' },
+    { actionType: 'PURCHASE', reason: '購買新的產業分析報告', status: 'REJECTED' },
   ]
 
   for (const appData of approvalsData) {
@@ -352,7 +361,7 @@ async function main() {
           workspaceId,
           payload: { detail: appData.reason },
           requesterId: users['wang@company.com'].id,
-          approverId: (appData.status !== ApprovalStatus.PENDING) ? users['admin@company.com'].id : null
+          approverId: (appData.status !== 'PENDING') ? users['admin@company.com'].id : null
         }
       })
     }
