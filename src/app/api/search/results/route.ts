@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { QualityStatus } from '@prisma/client';
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,7 +21,7 @@ export async function GET(request: NextRequest) {
     
     if (status) {
       // Treat status as qualityStatus for filtering
-      where.qualityStatus = status as QualityStatus;
+      where.qualityStatus = status;
     }
     if (search) {
       where.companyName = { contains: search, mode: 'insensitive' };
