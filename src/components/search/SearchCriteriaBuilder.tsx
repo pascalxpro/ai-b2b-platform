@@ -453,12 +453,14 @@ export default function SearchCriteriaBuilder({
                 if (crit.countries?.length) tags.push(`🌍${crit.countries.join('/')}`);
                 if (crit.industries?.length) tags.push(`🏭${crit.industries.join('/')}`);
                 if (crit.companyTypes?.length) tags.push(`🏢${crit.companyTypes.join('/')}`);
-                const label = crit.queryText || item.name || '未命名條件';
+                const label = (crit.queryText || item.name || '未命名條件').slice(0, 30);
                 const tagStr = tags.length > 0 ? ` [${tags.join(' ')}]` : '';
                 const dateStr = new Date(item.createdAt).toLocaleDateString();
+                const fullText = `${label}${tagStr} (${dateStr})`;
+                const display = fullText.length > 55 ? fullText.slice(0, 55) + '…' : fullText;
                 return (
                   <option key={item.id} value={item.id}>
-                    {label}{tagStr} ({dateStr})
+                    {display}
                   </option>
                 );
               })}
