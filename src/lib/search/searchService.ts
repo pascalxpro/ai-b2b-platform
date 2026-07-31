@@ -5,7 +5,7 @@ import { searchWithTavily, SearchProviderResult } from './providers/tavilyProvid
 // Non-B2B domain blocklist
 const BLOCKLIST = [
   // Search engines & their subdomains
-  'yahoo.com', 'uservoice.com', 'yimg.com', 'bing.com',
+  'yahoo.com', 'uservoice.com', 'yimg.com', 'bing.com', 'mm.bing.net',
   'google.com', 'google.co', 'googleapis.com', 'gstatic.com',
   'brave.com', 'brave.app', 'bravesoftware.com',
   'duckduckgo.com',
