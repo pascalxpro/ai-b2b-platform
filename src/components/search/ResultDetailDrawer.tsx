@@ -107,27 +107,27 @@ export default function ResultDetailDrawer({
             <div className={styles.contactList}>
               <div className={styles.contactItem}>
                 <Globe size={18} className={styles.contactIcon} />
-                <a href={data.website} target="_blank" rel="noreferrer" className={styles.contactValue} style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>
-                  {data.website}
+                <a href={data.website || '#'} target="_blank" rel="noreferrer" className={styles.contactValue} style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>
+                  {data.website || '未提供'}
                 </a>
-                <button className={styles.contactAction} onClick={() => handleCopy(data.website)}><Copy size={16} /></button>
+                <button className={styles.contactAction} onClick={() => handleCopy(data.website || '')}><Copy size={16} /></button>
               </div>
               <div className={styles.contactItem}>
                 <Mail size={18} className={styles.contactIcon} />
-                <span className={styles.contactValue}>{data.email}</span>
-                <button className={styles.contactAction} onClick={() => handleCopy(data.email)}><Copy size={16} /></button>
+                <span className={styles.contactValue}>{data.email || '未提供'}</span>
+                <button className={styles.contactAction} onClick={() => handleCopy(data.email || '')}><Copy size={16} /></button>
               </div>
               <div className={styles.contactItem}>
                 <Phone size={18} className={styles.contactIcon} />
-                <span className={styles.contactValue}>{data.phone}</span>
-                <button className={styles.contactAction} onClick={() => handleCopy(data.phone)}><Copy size={16} /></button>
+                <span className={styles.contactValue}>{data.phone || '未提供'}</span>
+                <button className={styles.contactAction} onClick={() => handleCopy(data.phone || '')}><Copy size={16} /></button>
               </div>
               <div className={styles.contactItem}>
                 <Linkedin size={18} className={styles.contactIcon} />
-                <a href={data.linkedin} target="_blank" rel="noreferrer" className={styles.contactValue} style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>
-                  LinkedIn Profile
+                <a href={data.linkedin || '#'} target="_blank" rel="noreferrer" className={styles.contactValue} style={{ color: 'var(--color-primary)', textDecoration: 'none' }}>
+                  {data.linkedin ? 'LinkedIn Profile' : '未提供'}
                 </a>
-                <button className={styles.contactAction} onClick={() => handleCopy(data.linkedin)}><Copy size={16} /></button>
+                <button className={styles.contactAction} onClick={() => handleCopy(data.linkedin || '')}><Copy size={16} /></button>
               </div>
             </div>
           </section>
@@ -135,14 +135,16 @@ export default function ResultDetailDrawer({
           <section>
             <h3 className={styles.sectionTitle}>來源資訊</h3>
             <div className={styles.sourceList}>
-              {data.sources.map((src, idx) => (
+              {(data.sources || []).length > 0 ? (data.sources || []).map((src, idx) => (
                 <div key={idx} className={styles.sourceItem}>
                   <a href={src.url} target="_blank" rel="noreferrer" className={styles.sourceLink}>
                     {src.provider} <ExternalLink size={14} />
                   </a>
                   <span className={styles.confidence}>可信度 {src.confidence}%</span>
                 </div>
-              ))}
+              )) : (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>暫無來源資訊</div>
+              )}
             </div>
           </section>
 
