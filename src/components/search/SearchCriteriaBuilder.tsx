@@ -164,6 +164,93 @@ export default function SearchCriteriaBuilder({
   const COUNTRY_SUGGESTIONS = ['台灣', '日本', '美國', '越南', '泰國', '德國'];
   const INDUSTRY_SUGGESTIONS = ['半導體', '電子零組件', '機械設備', '食品加工', '軟體服務'];
 
+  // Country-specific industry suggestions in local language
+  const COUNTRY_INDUSTRIES: Record<string, { label: string; local: string }[]> = {
+    '日本': [
+      { label: '食品加工', local: '食品加工' },
+      { label: '機械設備', local: '機械設備' },
+      { label: '汽車零件', local: '自動車部品' },
+      { label: '電子零件', local: '電子部品' },
+      { label: '化學材料', local: '化学材料' },
+      { label: '包裝材料', local: '包装資材' },
+      { label: '半導體', local: '半導体' },
+      { label: '醫療器材', local: '医療機器' },
+      { label: '精密儀器', local: '精密機器' },
+      { label: '金屬加工', local: '金属加工' },
+    ],
+    '台灣': [
+      { label: '半導體', local: '半導體' },
+      { label: '電子零組件', local: '電子零組件' },
+      { label: '機械設備', local: '機械設備' },
+      { label: '食品加工', local: '食品加工' },
+      { label: '塑膠製品', local: '塑膠製品' },
+      { label: '紡織成衣', local: '紡織成衣' },
+      { label: '化學材料', local: '化學材料' },
+      { label: '金屬製品', local: '金屬製品' },
+      { label: '光電產業', local: '光電產業' },
+      { label: '生技醫藥', local: '生技醫藥' },
+    ],
+    '美國': [
+      { label: '軟體服務', local: 'Software & SaaS' },
+      { label: '醫療設備', local: 'Medical Devices' },
+      { label: '航太國防', local: 'Aerospace & Defense' },
+      { label: '汽車零件', local: 'Auto Parts' },
+      { label: '食品飲料', local: 'Food & Beverage' },
+      { label: '化工材料', local: 'Chemicals' },
+      { label: '電子元件', local: 'Electronics' },
+      { label: '農業設備', local: 'Agriculture Equipment' },
+      { label: '能源設備', local: 'Energy Equipment' },
+      { label: '包裝材料', local: 'Packaging' },
+    ],
+    '越南': [
+      { label: '紡織成衣', local: 'Dệt may' },
+      { label: '食品加工', local: 'Chế biến thực phẩm' },
+      { label: '電子組裝', local: 'Lắp ráp điện tử' },
+      { label: '木材家具', local: 'Gỗ và nội thất' },
+      { label: '塑膠製品', local: 'Nhựa' },
+      { label: '水產養殖', local: 'Thủy sản' },
+      { label: '機械設備', local: 'Máy móc thiết bị' },
+      { label: '皮革鞋業', local: 'Da giày' },
+    ],
+    '泰國': [
+      { label: '食品加工', local: 'แปรรูปอาหาร' },
+      { label: '汽車零件', local: 'ชิ้นส่วนยานยนต์' },
+      { label: '電子產品', local: 'อิเล็กทรอนิกส์' },
+      { label: '橡膠製品', local: 'ผลิตภัณฑ์ยาง' },
+      { label: '塑膠製品', local: 'พลาสติก' },
+      { label: '紡織服裝', local: 'สิ่งทอ' },
+      { label: '珠寶首飾', local: 'อัญมณี' },
+      { label: '農產加工', local: 'เกษตรแปรรูป' },
+    ],
+    '德國': [
+      { label: '機械工程', local: 'Maschinenbau' },
+      { label: '汽車工業', local: 'Automobilindustrie' },
+      { label: '化學工業', local: 'Chemische Industrie' },
+      { label: '電氣工程', local: 'Elektrotechnik' },
+      { label: '醫療技術', local: 'Medizintechnik' },
+      { label: '金屬加工', local: 'Metallverarbeitung' },
+      { label: '食品飲料', local: 'Lebensmittel' },
+      { label: '包裝技術', local: 'Verpackungstechnik' },
+    ],
+    '韓國': [
+      { label: '半導體', local: '반도체' },
+      { label: '電子產品', local: '전자제품' },
+      { label: '汽車零件', local: '자동차 부품' },
+      { label: '造船工業', local: '조선업' },
+      { label: '化學材料', local: '화학소재' },
+      { label: '食品加工', local: '식품가공' },
+      { label: '美容化妝', local: '화장품' },
+      { label: '機械設備', local: '기계장비' },
+    ],
+  };
+
+  // Get suggested industries for selected countries
+  const suggestedIndustries = countries.length > 0
+    ? (COUNTRY_INDUSTRIES[countries[0]] || []).filter(
+        ind => !industries.includes(ind.local) && !industries.includes(ind.label)
+      )
+    : [];
+
 
 
   const toggleCompanyType = (type: string) => {
@@ -273,11 +360,10 @@ export default function SearchCriteriaBuilder({
         </div>
 
         {savedSearches.length > 0 && (
-          <div className={styles.section} style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '12px', borderRadius: '8px', marginBottom: '16px' }}>
-            <h3 className={styles.sectionTitle} style={{ fontSize: '13px', color: '#a1a1aa' }}>快速載入已儲存條件</h3>
+          <div className={styles.section}>
+            <h3 className={styles.sectionTitle} style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>快速載入已儲存條件</h3>
             <select
-              className={styles.textarea}
-              style={{ height: '38px', padding: '0 12px', cursor: 'pointer' }}
+              className={styles.selectField}
               value={selectedSavedId}
               onChange={e => handleSelectSaved(e.target.value)}
             >
@@ -381,6 +467,23 @@ export default function SearchCriteriaBuilder({
                 placeholder="輸入產業並按 Enter"
                 suggestions={INDUSTRY_SUGGESTIONS}
               />
+              {suggestedIndustries.length > 0 && (
+                <div className={styles.industrySuggestions}>
+                  <span className={styles.suggestLabel}>🏭 {countries[0]}熱門產業：</span>
+                  <div className={styles.suggestChips}>
+                    {suggestedIndustries.map(ind => (
+                      <button
+                        key={ind.local}
+                        className={styles.suggestChip}
+                        onClick={() => { setIndustries([...industries, ind.local]); setShowEstimates(true); }}
+                        title={ind.label}
+                      >
+                        {ind.local}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
