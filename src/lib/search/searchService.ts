@@ -285,10 +285,43 @@ export async function executeSearchTask(taskId: string) {
 
     // Build query from criteria
     const crit = (task.criteriaJson as any) || {};
-    const countriesStr = Array.isArray(crit.countries) ? crit.countries.join(' ') : '';
+    const countries: string[] = Array.isArray(crit.countries) ? crit.countries : [];
+    const countriesStr = countries.join(' ');
     const industriesStr = Array.isArray(crit.industries) ? crit.industries.join(' ') : '';
     const keywordsStr = Array.isArray(crit.keywords) ? crit.keywords.join(' ') : '';
     const companyTypesStr = Array.isArray(crit.companyTypes) ? crit.companyTypes.join(' ') : '';
+
+    // Country to TLD / search language mapping for geo-targeted search
+    const COUNTRY_TLD: Record<string, { tlds: string[]; lang: string; searchLang: string }> = {
+      '日本': { tlds: ['.jp'], lang: 'ja', searchLang: 'lang_ja' },
+      '台灣': { tlds: ['.tw'], lang: 'zh-TW', searchLang: 'lang_zh-TW' },
+      '美國': { tlds: ['.com', '.us'], lang: 'en', searchLang: 'lang_en' },
+      '越南': { tlds: ['.vn'], lang: 'vi', searchLang: 'lang_vi' },
+      '泰國': { tlds: ['.th'], lang: 'th', searchLang: 'lang_th' },
+      '德國': { tlds: ['.de'], lang: 'de', searchLang: 'lang_de' },
+      '韓國': { tlds: ['.kr'], lang: 'ko', searchLang: 'lang_ko' },
+      '中國': { tlds: ['.cn'], lang: 'zh-CN', searchLang: 'lang_zh-CN' },
+      '印尼': { tlds: ['.id'], lang: 'id', searchLang: 'lang_id' },
+      '馬來西亞': { tlds: ['.my'], lang: 'ms', searchLang: 'lang_ms' },
+      '印度': { tlds: ['.in'], lang: 'en', searchLang: 'lang_en' },
+      '英國': { tlds: ['.co.uk', '.uk'], lang: 'en', searchLang: 'lang_en' },
+      '法國': { tlds: ['.fr'], lang: 'fr', searchLang: 'lang_fr' },
+      '義大利': { tlds: ['.it'], lang: 'it', searchLang: 'lang_it' },
+      '西班牙': { tlds: ['.es'], lang: 'es', searchLang: 'lang_es' },
+      '澳洲': { tlds: ['.com.au', '.au'], lang: 'en', searchLang: 'lang_en' },
+      '菲律賓': { tlds: ['.ph'], lang: 'en', searchLang: 'lang_en' },
+      '新加坡': { tlds: ['.sg'], lang: 'en', searchLang: 'lang_en' },
+    };
+
+    // Build site: restriction for scraper-based engines
+    const targetTlds: string[] = [];
+    for (const c of countries) {
+      const info = COUNTRY_TLD[c];
+      if (info) targetTlds.push(...info.tlds);
+    }
+    const siteRestriction = targetTlds.length > 0
+      ? targetTlds.map(tld => `site:*${tld}`).join(' OR ')
+      : '';
 
     const queryParts = [
       task.queryText || crit.queryText || '',
@@ -296,6 +329,10 @@ export async function executeSearchTask(taskId: string) {
     ].filter(Boolean);
 
     const fullQuery = queryParts.join(' ').trim();
+    // Add site restriction for scraper engines (Yahoo, DDG, Bing)
+    const geoQuery = siteRestriction
+      ? `${fullQuery} (${siteRestriction})`
+      : fullQuery;
     const requestedCount = crit.targetCount || task.targetCount || 10;
 
     // Shorter focused query for additional coverage
@@ -303,9 +340,13 @@ export async function executeSearchTask(taskId: string) {
       countriesStr, keywordsStr || industriesStr,
       companyTypesStr ? companyTypesStr.split(' ')[0] : '',
     ].filter(Boolean).join(' ').trim() || fullQuery;
+    const geoShortQuery = siteRestriction
+      ? `${shortQuery} (${siteRestriction})`
+      : shortQuery;
 
     console.log(`[SearchService] Task ${taskId} executing.`);
     console.log(`[SearchService] Full query: "${fullQuery}"`);
+    console.log(`[SearchService] Geo query: "${geoQuery}"`);
     console.log(`[SearchService] Short query: "${shortQuery}"`);
 
     const settings = await loadSettingsFromDb();
@@ -398,23 +439,23 @@ export async function executeSearchTask(taskId: string) {
 
         // Free scrapers (no API key needed)
         case 'yahoo':
-          providerPromises.push({ name, promise: searchYahoo(fullQuery, requestedCount).catch(() => []) });
-          if (shortQuery !== fullQuery) {
-            providerPromises.push({ name, promise: searchYahoo(shortQuery, requestedCount).catch(() => []) });
+          providerPromises.push({ name, promise: searchYahoo(geoQuery, requestedCount).catch(() => []) });
+          if (geoShortQuery !== geoQuery) {
+            providerPromises.push({ name, promise: searchYahoo(geoShortQuery, requestedCount).catch(() => []) });
           }
           break;
 
         case 'duckduckgo':
-          providerPromises.push({ name, promise: searchDDG(fullQuery, requestedCount).catch(() => []) });
-          if (shortQuery !== fullQuery) {
-            providerPromises.push({ name, promise: searchDDG(shortQuery, requestedCount).catch(() => []) });
+          providerPromises.push({ name, promise: searchDDG(geoQuery, requestedCount).catch(() => []) });
+          if (geoShortQuery !== geoQuery) {
+            providerPromises.push({ name, promise: searchDDG(geoShortQuery, requestedCount).catch(() => []) });
           }
           break;
 
         case 'bing_scraper':
-          providerPromises.push({ name, promise: searchBing(fullQuery, requestedCount).catch(() => []) });
-          if (shortQuery !== fullQuery) {
-            providerPromises.push({ name, promise: searchBing(shortQuery, requestedCount).catch(() => []) });
+          providerPromises.push({ name, promise: searchBing(geoQuery, requestedCount).catch(() => []) });
+          if (geoShortQuery !== geoQuery) {
+            providerPromises.push({ name, promise: searchBing(geoShortQuery, requestedCount).catch(() => []) });
           }
           break;
       }
@@ -471,6 +512,39 @@ export async function executeSearchTask(taskId: string) {
     console.log(`[SearchService] Total merged unique results: ${allResults.length}`);
 
     // Save ALL results to database
+    // TLD to country name mapping for auto-detection
+    const TLD_COUNTRY: Record<string, string> = {
+      '.jp': '日本', '.tw': '台灣', '.us': '美國', '.vn': '越南',
+      '.th': '泰國', '.de': '德國', '.kr': '韓國', '.cn': '中國',
+      '.id': '印尼', '.my': '馬來西亞', '.in': '印度', '.uk': '英國',
+      '.fr': '法國', '.it': '義大利', '.es': '西班牙', '.au': '澳洲',
+      '.ph': '菲律賓', '.sg': '新加坡', '.br': '巴西', '.mx': '墨西哥',
+      '.nl': '荷蘭', '.se': '瑞典', '.ch': '瑞士', '.at': '奧地利',
+      '.nz': '紐西蘭', '.ca': '加拿大', '.hk': '香港',
+    };
+
+    function detectCountry(url: string): string {
+      try {
+        const hostname = new URL(url).hostname.toLowerCase();
+        // Check longest TLDs first (e.g. .co.uk, .com.au)
+        if (hostname.endsWith('.co.uk')) return '英國';
+        if (hostname.endsWith('.com.au')) return '澳洲';
+        if (hostname.endsWith('.co.jp')) return '日本';
+        if (hostname.endsWith('.co.kr')) return '韓國';
+        if (hostname.endsWith('.com.tw')) return '台灣';
+        if (hostname.endsWith('.com.hk')) return '香港';
+        if (hostname.endsWith('.com.br')) return '巴西';
+        if (hostname.endsWith('.com.mx')) return '墨西哥';
+        // Check simple TLDs
+        for (const [tld, country] of Object.entries(TLD_COUNTRY)) {
+          if (hostname.endsWith(tld)) return country;
+        }
+        // Default: if user specified countries, use first one; otherwise Unknown
+        if (countries.length > 0) return countries[0];
+      } catch {}
+      return countries.length > 0 ? countries[0] : 'Unknown';
+    }
+
     let savedCount = 0;
     for (const { result: item, provider } of allResults) {
       const existing = await prisma.searchResult.findFirst({
@@ -484,7 +558,7 @@ export async function executeSearchTask(taskId: string) {
             workspaceId: task.workspaceId,
             companyName: item.companyName,
             website: item.website,
-            country: 'Unknown',
+            country: detectCountry(item.website),
             sourceCount: 1,
             qualityStatus: 'NEW',
             conversionStatus: 'NONE',
