@@ -652,3 +652,80 @@
   opacity: 0.8;
   text-decoration: underline;
 }
+
+/* ─── AI Service Configuration ─── */
+.aiProviderGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.aiProviderCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 16px;
+  border-radius: var(--radius-xl);
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.aiProviderCard:hover {
+  border-color: var(--color-primary-light, rgba(99,102,241,0.4));
+  background: var(--color-surface-hover);
+}
+
+.aiProviderActive {
+  border-color: var(--color-primary);
+  background: var(--color-primary-glow, rgba(99,102,241,0.06));
+  box-shadow: 0 0 0 1px var(--color-primary), 0 4px 12px rgba(99,102,241,0.15);
+}
+
+.aiProviderCheck {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: var(--color-primary);
+}
+
+.aiProviderName {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.aiProviderDesc {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.aiTestBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.aiTestBtn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-glow, rgba(99,102,241,0.06));
+}
+
+.aiTestBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -14,6 +14,11 @@ export interface SystemSettings {
   maxSearchLimit: number;
   defaultTargetCount: number;
   searchEngines: SearchEngineConfig[];
+  // AI service configuration
+  aiProvider: 'gemini' | 'ollama' | 'lmstudio';
+  aiApiKey: string;
+  aiModel: string;
+  aiBaseUrl?: string; // For Ollama / LM Studio custom endpoint
 }
 
 // ─── Default Engine Registry ───
@@ -63,6 +68,10 @@ function getDefaultSettings(): SystemSettings {
     maxSearchLimit: 50,
     defaultTargetCount: 100,
     searchEngines: getDefaultEngines(),
+    aiProvider: 'gemini',
+    aiApiKey: process.env.GOOGLE_AI_API_KEY || '',
+    aiModel: 'gemini-2.0-flash-lite',
+    aiBaseUrl: '',
   };
 }
 

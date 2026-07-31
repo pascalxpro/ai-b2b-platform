@@ -4,8 +4,20 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './page.module.css';
 import { 
   Settings, Plus, Search, Edit2, Ban, GripVertical,
-  AlertTriangle
+  AlertTriangle, Globe, Monitor, Cpu, Zap, CheckCircle, XCircle
 } from 'lucide-react';
+
+const AI_PROVIDERS = [
+  { id: 'gemini' as const, name: 'Google Gemini', desc: '雲端 AI，需要 API Key', icon: Globe },
+  { id: 'ollama' as const, name: 'Ollama', desc: '本地 AI，免費開源', icon: Monitor },
+  { id: 'lmstudio' as const, name: 'LM Studio', desc: '本地 AI，簡易介面', icon: Cpu },
+];
+
+const GEMINI_MODELS = [
+  { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite (經濟)' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (推薦)' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro (最強)' },
+];
 
 // Engine registry (must match server-side ENGINE_REGISTRY)
 const ENGINE_REGISTRY = [
@@ -39,6 +51,15 @@ export default function AdminPage() {
   const [defaultTargetCount, setDefaultTargetCount] = useState(100);
   const [savingSettings, setSavingSettings] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState('');
+
+  // AI settings state
+  const [aiProvider, setAiProvider] = useState<'gemini' | 'ollama' | 'lmstudio'>('gemini');
+  const [aiApiKey, setAiApiKey] = useState('');
+  const [aiModel, setAiModel] = useState('gemini-2.0-flash-lite');
+  const [aiBaseUrl, setAiBaseUrl] = useState('');
+  const [aiTestResult, setAiTestResult] = useState<{success: boolean; message: string} | null>(null);
+  const [aiTesting, setAiTesting] = useState(false);
+  const [aiSaving, setAiSaving] = useState(false);
 
   // Drag state
   const dragItem = useRef<number | null>(null);
@@ -75,6 +96,10 @@ export default function AdminPage() {
         if (data) {
           if (data.maxSearchLimit) setMaxSearchLimit(data.maxSearchLimit);
           if (data.defaultTargetCount) setDefaultTargetCount(data.defaultTargetCount);
+          if (data.aiProvider) setAiProvider(data.aiProvider);
+          if (data.aiApiKey) setAiApiKey(data.aiApiKey);
+          if (data.aiModel) setAiModel(data.aiModel);
+          if (data.aiBaseUrl) setAiBaseUrl(data.aiBaseUrl);
           
           if (Array.isArray(data.searchEngines) && data.searchEngines.length > 0) {
             // Use saved order
@@ -199,6 +224,52 @@ export default function AdminPage() {
     }
   };
 
+  // AI test connection
+  const handleAiTest = async () => {
+    setAiTesting(true);
+    setAiTestResult(null);
+    try {
+      const res = await fetch('/api/ai/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: aiProvider, apiKey: aiApiKey, model: aiModel, baseUrl: aiBaseUrl }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAiTestResult({ success: true, message: `✅ 連線成功！回覆：${data.reply}` });
+      } else {
+        setAiTestResult({ success: false, message: `❌ ${data.error}` });
+      }
+    } catch (e: any) {
+      setAiTestResult({ success: false, message: `❌ 連線失敗：${e.message}` });
+    } finally {
+      setAiTesting(false);
+    }
+  };
+
+  // Save AI settings
+  const handleSaveAiSettings = async () => {
+    setAiSaving(true);
+    setSaveSuccessMessage('');
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aiProvider, aiApiKey, aiModel, aiBaseUrl }),
+      });
+      if (res.ok) {
+        setSaveSuccessMessage('✅ AI 設定已成功儲存！');
+        setTimeout(() => setSaveSuccessMessage(''), 3000);
+      } else {
+        alert('儲存失敗');
+      }
+    } catch (e) {
+      alert('儲存失敗');
+    } finally {
+      setAiSaving(false);
+    }
+  };
+
   // Find first scraper index for separator
   const firstScraperIdx = engines.findIndex(e => getRegistryInfo(e.id)?.type === 'scraper');
 
@@ -223,6 +294,12 @@ export default function AdminPage() {
           onClick={() => setActiveTab('providers')}
         >
           搜尋引擎管理
+        </button>
+        <button 
+          className={`${styles.tab} ${activeTab === 'ai' ? styles.activeTab : ''}`}
+          onClick={() => setActiveTab('ai')}
+        >
+          AI 服務配置
         </button>
         <button 
           className={`${styles.tab} ${activeTab === 'settings' ? styles.activeTab : ''}`}
@@ -426,7 +503,151 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Tab 3: System Settings */}
+        {/* Tab 3: AI Settings */}
+        {activeTab === 'ai' && (
+          <div className={styles.settingsGrid} style={{ maxWidth: 900 }}>
+            <div className={`${styles.settingsCard} glass-2`}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Zap size={20} color="white" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>AI 服務配置</h3>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>選擇並設定 AI 服務，支援雲端與本地端模型。</p>
+                </div>
+              </div>
+
+              {/* Provider Selection */}
+              <div style={{ marginTop: 16 }}>
+                <div className={styles.label} style={{ marginBottom: 12 }}>AI 服務提供商</div>
+                <div className={styles.aiProviderGrid}>
+                  {AI_PROVIDERS.map(p => {
+                    const Icon = p.icon;
+                    const isActive = aiProvider === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        className={`${styles.aiProviderCard} ${isActive ? styles.aiProviderActive : ''}`}
+                        onClick={() => { setAiProvider(p.id); setAiTestResult(null); }}
+                      >
+                        {isActive && <CheckCircle size={16} className={styles.aiProviderCheck} />}
+                        <Icon size={28} style={{ color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)' }} />
+                        <span className={styles.aiProviderName}>{p.name}</span>
+                        <span className={styles.aiProviderDesc}>{p.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* API Key */}
+              {aiProvider === 'gemini' && (
+                <div style={{ marginTop: 16 }}>
+                  <div className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>🔑</span> Google AI API Key
+                  </div>
+                  <input
+                    type="password"
+                    className={styles.engineKeyInput}
+                    style={{ marginTop: 8, minHeight: 42 }}
+                    placeholder="輸入 Google AI API Key"
+                    value={aiApiKey}
+                    onChange={e => setAiApiKey(e.target.value)}
+                  />
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: '0.8rem', color: 'var(--color-primary)', marginTop: 6, display: 'inline-block' }}
+                  >
+                    從 Google AI Studio 免費取得 →
+                  </a>
+                </div>
+              )}
+
+              {/* Base URL for Ollama / LM Studio */}
+              {(aiProvider === 'ollama' || aiProvider === 'lmstudio') && (
+                <div style={{ marginTop: 16 }}>
+                  <div className={styles.label}>🌐 API 端點</div>
+                  <input
+                    type="text"
+                    className={styles.engineKeyInput}
+                    style={{ marginTop: 8, minHeight: 42 }}
+                    placeholder={aiProvider === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234'}
+                    value={aiBaseUrl}
+                    onChange={e => setAiBaseUrl(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {/* Model Selection */}
+              <div style={{ marginTop: 16 }}>
+                <div className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>🤖</span> 模型
+                </div>
+                {aiProvider === 'gemini' ? (
+                  <select
+                    className={styles.engineKeyInput}
+                    style={{ marginTop: 8, minHeight: 42, cursor: 'pointer' }}
+                    value={aiModel}
+                    onChange={e => setAiModel(e.target.value)}
+                  >
+                    {GEMINI_MODELS.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    className={styles.engineKeyInput}
+                    style={{ marginTop: 8, minHeight: 42 }}
+                    placeholder={aiProvider === 'ollama' ? 'llama3' : 'local-model'}
+                    value={aiModel}
+                    onChange={e => setAiModel(e.target.value)}
+                  />
+                )}
+              </div>
+
+              {/* Test Connection */}
+              <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  className={styles.aiTestBtn}
+                  onClick={handleAiTest}
+                  disabled={aiTesting}
+                >
+                  <Zap size={16} />
+                  {aiTesting ? '測試中...' : '測試連線'}
+                </button>
+                {aiTestResult && (
+                  <span style={{
+                    fontSize: '0.85rem',
+                    color: aiTestResult.success ? '#10b981' : '#ef4444',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    {aiTestResult.success ? <CheckCircle size={16} /> : <XCircle size={16} />}
+                    {aiTestResult.message}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {saveSuccessMessage && (
+              <div style={{ color: '#10b981', fontWeight: 600, padding: '8px 0' }}>
+                {saveSuccessMessage}
+              </div>
+            )}
+
+            <button
+              className={`${styles.primaryBtn} ${styles.saveBtn}`}
+              onClick={handleSaveAiSettings}
+              disabled={aiSaving}
+            >
+              {aiSaving ? '儲存中...' : '💾 儲存 AI 設定'}
+            </button>
+          </div>
+        )}
+
+        {/* Tab 4: System Settings */}
         {activeTab === 'settings' && (
           <div className={styles.settingsGrid}>
             <div className={`${styles.settingsCard} glass-2`}>
