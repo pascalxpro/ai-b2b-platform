@@ -303,10 +303,11 @@ export default function AdminPage() {
 
   if (authChecking) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', color: 'var(--color-text-muted)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem', marginBottom: 16 }}>🔐</div>
-          <div>驗證權限中...</div>
+      <div className={styles.authGuard}>
+        <div className={styles.authCard}>
+          <div className={styles.authSpinner} />
+          <h2 className={styles.authTitle}>驗證身分中</h2>
+          <p className={styles.authSubtext}>正在確認您的管理員權限...</p>
         </div>
       </div>
     );
@@ -314,15 +315,31 @@ export default function AdminPage() {
 
   if (!isAdmin) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
-        <div style={{ textAlign: 'center', maxWidth: 400 }}>
-          <Shield size={48} style={{ color: '#ef4444', marginBottom: 16 }} />
-          <h2 style={{ fontSize: '1.3rem', fontWeight: 600, marginBottom: 8, color: 'var(--color-text)' }}>存取被拒絕</h2>
-          <p style={{ color: 'var(--color-text-muted)', marginBottom: 24 }}>此功能僅限系統管理員使用。請使用管理員帳號登入。</p>
+      <div className={styles.authGuard}>
+        <div className={styles.authCard}>
+          <div className={styles.authShield}>
+            <Shield size={32} />
+          </div>
+          <h2 className={styles.authTitle}>存取被拒絕</h2>
+          <p className={styles.authSubtext}>
+            此功能僅限系統管理員使用。<br />
+            請使用管理員帳號登入以存取系統設定。
+          </p>
+          <div className={styles.authInfo}>
+            <div className={styles.authInfoItem}>
+              <span className={styles.authInfoLabel}>預設帳號</span>
+              <code className={styles.authCode}>admin@b2b.com</code>
+            </div>
+            <div className={styles.authInfoItem}>
+              <span className={styles.authInfoLabel}>預設密碼</span>
+              <code className={styles.authCode}>admin123</code>
+            </div>
+          </div>
           <button
+            className={styles.authLoginBtn}
             onClick={() => router.push('/login')}
-            style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 600, cursor: 'pointer' }}
           >
+            <Shield size={16} />
             前往登入
           </button>
         </div>
