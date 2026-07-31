@@ -17,6 +17,7 @@ function SearchResultsContent() {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailData, setDetailData] = useState<any | null>(null);
+  const [taskInfo, setTaskInfo] = useState<any | null>(null);
 
   // Filter & Sort state
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,6 +28,29 @@ function SearchResultsContent() {
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
 
   useEffect(() => {
+    // Fetch task info
+    if (taskId) {
+      fetch(`/api/search/tasks/${taskId}`)
+        .then(r => r.json())
+        .then(task => {
+          if (task && !task.error) {
+            setTaskInfo(task);
+          }
+        })
+        .catch(console.error);
+    } else {
+      // No taskId: fetch most recent task
+      fetch('/api/search/tasks?limit=1')
+        .then(r => r.json())
+        .then(tasks => {
+          if (Array.isArray(tasks) && tasks.length > 0) {
+            setTaskInfo(tasks[0]);
+          }
+        })
+        .catch(console.error);
+    }
+
+    // Fetch results
     const url = taskId ? `/api/search/results?taskId=${taskId}` : '/api/search/results';
     fetch(url)
       .then(r => r.json())
@@ -200,17 +224,21 @@ function SearchResultsContent() {
         <span className={styles.resultCount}>共 {filteredResults.length} 筆</span>
       </div>
 
-      {taskId && (
+      {taskInfo && (
         <div className={styles.taskSummaryBar}>
           <div className={styles.taskInfo}>
-            <span className={styles.taskName}>目標任務: 日本食品包裝機械</span>
-            <span className={styles.taskStatus}>執行中</span>
+            <span className={styles.taskName}>目標任務: {taskInfo.name || '未命名任務'}</span>
+            <span className={styles.taskStatus}>
+              {taskInfo.status === 'COMPLETED' ? '已完成' : taskInfo.status === 'RUNNING' ? '執行中' : taskInfo.status === 'FAILED' ? '失敗' : '排隊中'}
+            </span>
           </div>
           <div className={styles.taskProgress}>
             <div className={styles.progressTrack}>
-              <div className={styles.progressBar} style={{ width: '65%' }} />
+              <div className={styles.progressBar} style={{ width: `${taskInfo.status === 'COMPLETED' ? 100 : Math.round((filteredResults.length / (taskInfo.targetCount || 50)) * 100)}%` }} />
             </div>
-            <span className={styles.progressText}>65% (32/50)</span>
+            <span className={styles.progressText}>
+              {taskInfo.status === 'COMPLETED' ? '100%' : `${Math.round((filteredResults.length / (taskInfo.targetCount || 50)) * 100)}%`} ({filteredResults.length}/{taskInfo.targetCount || 50})
+            </span>
           </div>
         </div>
       )}

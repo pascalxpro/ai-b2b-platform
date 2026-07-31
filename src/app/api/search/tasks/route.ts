@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     
     const where: any = {};
     if (workspaceId) where.workspaceId = workspaceId;
+    const limit = searchParams.get('limit');
     
     const tasks = await prisma.searchTask.findMany({
       where,
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
         _count: { select: { searchResults: true } },
       },
       orderBy: { createdAt: 'desc' },
+      ...(limit ? { take: parseInt(limit, 10) } : {}),
     });
     
     return NextResponse.json(tasks);
