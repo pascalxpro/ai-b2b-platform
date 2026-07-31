@@ -4,8 +4,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './page.module.css';
 import { 
   Settings, Plus, Search, Edit2, Ban, GripVertical,
-  AlertTriangle, Globe, Monitor, Cpu, Zap, CheckCircle, XCircle
+  AlertTriangle, Globe, Monitor, Cpu, Zap, CheckCircle, XCircle,
+  Eye, EyeOff, Shield
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 const AI_PROVIDERS = [
   { id: 'gemini' as const, name: 'Google Gemini', desc: '雲端 AI，需要 API Key', icon: Globe },
@@ -43,6 +45,31 @@ interface EngineState {
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('users');
+  const router = useRouter();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [showApiKeys, setShowApiKeys] = useState<Record<string, boolean>>({});
+  const [showAiKey, setShowAiKey] = useState(false);
+
+  // Check admin auth
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => r.json())
+      .then(data => {
+        if (data.authenticated && data.user?.isAdmin) {
+          setIsAdmin(true);
+        } else {
+          setIsAdmin(false);
+        }
+      })
+      .catch(() => setIsAdmin(false))
+      .finally(() => setAuthChecking(false));
+  }, []);
+
+  const toggleKeyVisibility = (engineId: string) => {
+    setShowApiKeys(prev => ({ ...prev, [engineId]: !prev[engineId] }));
+  };
+
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -274,6 +301,35 @@ export default function AdminPage() {
   // Find first scraper index for separator
   const firstScraperIdx = engines.findIndex(e => getRegistryInfo(e.id)?.type === 'scraper');
 
+  if (authChecking) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', color: 'var(--color-text-muted)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: 16 }}>🔐</div>
+          <div>驗證權限中...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh' }}>
+        <div style={{ textAlign: 'center', maxWidth: 400 }}>
+          <Shield size={48} style={{ color: '#ef4444', marginBottom: 16 }} />
+          <h2 style={{ fontSize: '1.3rem', fontWeight: 600, marginBottom: 8, color: 'var(--color-text)' }}>存取被拒絕</h2>
+          <p style={{ color: 'var(--color-text-muted)', marginBottom: 24 }}>此功能僅限系統管理員使用。請使用管理員帳號登入。</p>
+          <button
+            onClick={() => router.push('/login')}
+            style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 600, cursor: 'pointer' }}
+          >
+            前往登入
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.container}>
       {/* Header */}
@@ -426,14 +482,24 @@ export default function AdminPage() {
                         {info.needsApiKey && (
                           <div className={styles.engineKeySection}>
                             <label className={styles.engineKeyLabel}>API Keys（多組以逗號分隔，額度用完自動切換）</label>
-                            <textarea
-                              className={styles.engineKeyInput}
-                              placeholder={`輸入 ${info.name} API Key，多組以逗號分隔`}
-                              value={engine.apiKeys}
-                              onChange={(e) => updateEngine(idx, 'apiKeys', e.target.value)}
-                              rows={1}
-                              onClick={(e) => e.stopPropagation()}
-                            />
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                              <input
+                                className={styles.engineKeyInput}
+                                type={showApiKeys[info.id] ? 'text' : 'password'}
+                                placeholder={`輸入 ${info.name} API Key，多組以逗號分隔`}
+                                value={engine.apiKeys}
+                                onChange={(e) => updateEngine(idx, 'apiKeys', e.target.value)}
+                                style={{ paddingRight: 40 }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => toggleKeyVisibility(info.id)}
+                                style={{ position: 'absolute', right: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4 }}
+                              >
+                                {showApiKeys[info.id] ? <EyeOff size={16} /> : <Eye size={16} />}
+                              </button>
+                            </div>
                           </div>
                         )}
 
@@ -547,14 +613,23 @@ export default function AdminPage() {
                   <div className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>🔑</span> Google AI API Key
                   </div>
-                  <input
-                    type="password"
-                    className={styles.engineKeyInput}
-                    style={{ marginTop: 8, minHeight: 42 }}
-                    placeholder="輸入 Google AI API Key"
-                    value={aiApiKey}
-                    onChange={e => setAiApiKey(e.target.value)}
-                  />
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', marginTop: 8 }}>
+                    <input
+                      className={styles.engineKeyInput}
+                      type={showAiKey ? 'text' : 'password'}
+                      style={{ minHeight: 42, width: '100%', paddingRight: 40 }}
+                      placeholder="輸入 Google AI API Key"
+                      value={aiApiKey}
+                      onChange={e => setAiApiKey(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAiKey(!showAiKey)}
+                      style={{ position: 'absolute', right: 10, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 4 }}
+                    >
+                      {showAiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                   <a
                     href="https://aistudio.google.com/apikey"
                     target="_blank"

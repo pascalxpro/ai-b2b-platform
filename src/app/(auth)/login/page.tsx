@@ -20,11 +20,24 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Simulate login
-      await new Promise(resolve => setTimeout(resolve, 1000));
       if (!email || !password) {
         throw new Error('請輸入電子郵件與密碼');
       }
+
+      // Ensure admin user exists
+      await fetch('/api/auth/seed');
+
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || '登入失敗');
+      }
+
       router.push('/');
     } catch (err: any) {
       setError(err.message || '登入失敗，請稍後再試');
