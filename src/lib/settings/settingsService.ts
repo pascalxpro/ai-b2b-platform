@@ -1,5 +1,4 @@
-import fs from 'fs';
-import path from 'path';
+import { prisma } from '@/lib/db/prisma';
 
 // ─── Search Engine Configuration ───
 export interface SearchEngineConfig {
@@ -41,16 +40,16 @@ export const ENGINE_REGISTRY: {
   { id: 'bing_scraper', name: 'Bing Search (免費爬蟲)', type: 'scraper', freeQuota: '無限', needsApiKey: false, warning: '結果品質可能受限' },
 ];
 
+const SETTINGS_DB_KEY = 'system_settings';
+
 function getDefaultEngines(): SearchEngineConfig[] {
   return ENGINE_REGISTRY.map(e => ({
     id: e.id,
-    enabled: e.id === 'tavily' || e.id === 'yahoo', // Default: Tavily + Yahoo enabled
+    enabled: e.id === 'tavily' || e.id === 'yahoo',
     apiKeys: '',
     extraConfig: '',
   }));
 }
-
-const SETTINGS_FILE_PATH = path.join(process.cwd(), 'data', 'settings.json');
 
 function getDefaultSettings(): SystemSettings {
   const envKeys = process.env.TAVILY_API_KEYS || process.env.TAVILY_API_KEY || '';
@@ -67,26 +66,43 @@ function getDefaultSettings(): SystemSettings {
   };
 }
 
+// In-memory cache to avoid DB read on every request
 let inMemorySettings: SystemSettings | null = null;
 
+function mergeEnginesWithRegistry(engines: SearchEngineConfig[]): SearchEngineConfig[] {
+  const savedIds = new Set(engines.map(e => e.id));
+  const merged = [...engines];
+  for (const reg of ENGINE_REGISTRY) {
+    if (!savedIds.has(reg.id)) {
+      merged.push({ id: reg.id, enabled: false, apiKeys: '', extraConfig: '' });
+    }
+  }
+  return merged;
+}
+
+// ─── Read settings (sync, from cache; async loader below) ───
 export function getSystemSettings(): SystemSettings {
   if (inMemorySettings) {
     return inMemorySettings;
   }
+  // Return defaults if cache not loaded yet
+  // The async loader will populate it
+  return getDefaultSettings();
+}
+
+// ─── Async loader: reads from DB ───
+export async function loadSettingsFromDb(): Promise<SystemSettings> {
+  if (inMemorySettings) return inMemorySettings;
 
   try {
-    if (fs.existsSync(SETTINGS_FILE_PATH)) {
-      const data = fs.readFileSync(SETTINGS_FILE_PATH, 'utf-8');
-      const parsed = JSON.parse(data);
-      
-      // Merge saved engines with registry to handle new engines added after save
+    const row = await prisma.systemSetting.findUnique({
+      where: { key: SETTINGS_DB_KEY },
+    });
+
+    if (row) {
+      const parsed = JSON.parse(row.value);
       let engines = parsed.searchEngines || getDefaultEngines();
-      const savedIds = new Set(engines.map((e: SearchEngineConfig) => e.id));
-      for (const reg of ENGINE_REGISTRY) {
-        if (!savedIds.has(reg.id)) {
-          engines.push({ id: reg.id, enabled: false, apiKeys: '', extraConfig: '' });
-        }
-      }
+      engines = mergeEnginesWithRegistry(engines);
 
       // Backward compat: if tavilyApiKeys was set but searchEngines[tavily].apiKeys is empty
       const tavilyEngine = engines.find((e: SearchEngineConfig) => e.id === 'tavily');
@@ -100,18 +116,20 @@ export function getSystemSettings(): SystemSettings {
         ...parsed,
         searchEngines: engines,
       };
+      console.log('[Settings] Loaded from database');
       return inMemorySettings!;
     }
   } catch (error) {
-    console.error('Failed to read settings file:', error);
+    console.error('[Settings] Failed to read from database:', error);
   }
 
   inMemorySettings = getDefaultSettings();
   return inMemorySettings;
 }
 
-export function updateSystemSettings(newSettings: Partial<SystemSettings>): SystemSettings {
-  const current = getSystemSettings();
+// ─── Write settings to DB ───
+export async function updateSystemSettings(newSettings: Partial<SystemSettings>): Promise<SystemSettings> {
+  const current = await loadSettingsFromDb();
   const updated: SystemSettings = {
     ...current,
     ...newSettings,
@@ -125,17 +143,18 @@ export function updateSystemSettings(newSettings: Partial<SystemSettings>): Syst
     }
   }
 
-  inMemorySettings = updated;
-
+  // Save to database
   try {
-    const dir = path.dirname(SETTINGS_FILE_PATH);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(SETTINGS_FILE_PATH, JSON.stringify(updated, null, 2), 'utf-8');
+    await prisma.systemSetting.upsert({
+      where: { key: SETTINGS_DB_KEY },
+      update: { value: JSON.stringify(updated) },
+      create: { key: SETTINGS_DB_KEY, value: JSON.stringify(updated) },
+    });
+    console.log('[Settings] Saved to database');
   } catch (error) {
-    console.error('Failed to write settings file:', error);
+    console.error('[Settings] Failed to write to database:', error);
   }
 
+  inMemorySettings = updated;
   return updated;
 }

@@ -554,3 +554,12 @@ model CostLedger {
   @@index([workspaceId])
   @@map("cost_ledgers")
 }
+
+// ─── System Settings (key-value store) ───
+model SystemSetting {
+  key       String   @id @map("key")
+  value     String   @map("value") @db.Text
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}

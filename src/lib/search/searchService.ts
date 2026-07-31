@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db/prisma';
-import { getSystemSettings } from '@/lib/settings/settingsService';
+import { loadSettingsFromDb } from '@/lib/settings/settingsService';
 import { searchWithTavily, SearchProviderResult } from './providers/tavilyProvider';
 import { searchWithSerper } from './providers/serperProvider';
 import { searchWithGoogleCse } from './providers/googleCseProvider';
@@ -292,7 +292,7 @@ export async function executeSearchTask(taskId: string) {
     console.log(`[SearchService] Full query: "${fullQuery}"`);
     console.log(`[SearchService] Short query: "${shortQuery}"`);
 
-    const settings = getSystemSettings();
+    const settings = await loadSettingsFromDb();
     const enabledEngines = (settings.searchEngines || []).filter(e => e.enabled);
 
     console.log(`[SearchService] Enabled engines: ${enabledEngines.map(e => e.id).join(', ')}`);
