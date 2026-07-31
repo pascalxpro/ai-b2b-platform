@@ -61,44 +61,60 @@ function isBlockedUrl(url: string): boolean {
   return false;
 }
 
-// ─── Yahoo Search (proven stable on Zeabur cloud IP) ───
+// ─── Yahoo Search (multi-page for more results) ───
 async function searchYahoo(query: string, targetCount: number): Promise<SearchProviderResult[]> {
-  console.log(`[Yahoo] Searching: "${query}"`);
-  try {
-    const res = await fetch(`https://search.yahoo.com/search?p=${encodeURIComponent(query)}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-      },
-    });
-    if (!res.ok) return [];
+  console.log(`[Yahoo] Searching: "${query}" (target: ${targetCount})`);
+  const results: SearchProviderResult[] = [];
+  const seen = new Set<string>();
+  const maxPages = Math.min(5, Math.ceil(targetCount / 10));
 
-    const html = await res.text();
-    const results: SearchProviderResult[] = [];
-    const seen = new Set<string>();
-    const ruMatches = html.match(/https%3a%2f%2f[^"&\s]+/gi) || [];
+  for (let page = 0; page < maxPages; page++) {
+    const startIndex = page * 10 + 1;
+    try {
+      const res = await fetch(`https://search.yahoo.com/search?p=${encodeURIComponent(query)}&b=${startIndex}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        },
+      });
+      if (!res.ok) break;
 
-    for (const rawRu of ruMatches) {
+      const html = await res.text();
+      let pageFound = 0;
+      const ruMatches = html.match(/https%3a%2f%2f[^"&\s]+/gi) || [];
+
+      for (const rawRu of ruMatches) {
+        if (results.length >= targetCount) break;
+        let decoded = '';
+        try { decoded = decodeURIComponent(rawRu); } catch { continue; }
+        decoded = decoded.split('/RK=')[0];
+        if (!decoded.startsWith('http') || isBlockedUrl(decoded)) continue;
+        if (seen.has(decoded)) continue;
+        seen.add(decoded);
+
+        let companyName = 'Enterprise';
+        try { companyName = new URL(decoded).hostname.replace('www.', ''); } catch {}
+        results.push({ companyName, website: decoded, title: companyName, snippet: companyName });
+        pageFound++;
+      }
+
+      console.log(`[Yahoo] Page ${page + 1}: found ${pageFound} results`);
+      if (pageFound === 0) break; // No more results
       if (results.length >= targetCount) break;
-      let decoded = '';
-      try { decoded = decodeURIComponent(rawRu); } catch { continue; }
-      decoded = decoded.split('/RK=')[0];
-      if (!decoded.startsWith('http') || isBlockedUrl(decoded)) continue;
-      if (seen.has(decoded)) continue;
-      seen.add(decoded);
 
-      let companyName = 'Enterprise';
-      try { companyName = new URL(decoded).hostname.replace('www.', ''); } catch {}
-      results.push({ companyName, website: decoded, title: companyName, snippet: companyName });
+      // Small delay between pages to avoid rate limiting
+      if (page < maxPages - 1) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+    } catch (e: any) {
+      console.error(`[Yahoo] Page ${page + 1} failed:`, e.message);
+      break;
     }
-
-    console.log(`[Yahoo] Found ${results.length} results`);
-    return results;
-  } catch (e: any) {
-    console.error('[Yahoo] Failed:', e.message);
-    return [];
   }
+
+  console.log(`[Yahoo] Total: ${results.length} results from ${maxPages} pages`);
+  return results;
 }
 
 // ─── DuckDuckGo POST Search ───

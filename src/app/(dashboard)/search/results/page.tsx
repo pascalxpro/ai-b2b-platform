@@ -42,13 +42,20 @@ function SearchResultsContent() {
               name: d.companyName || d.name || '未知',
               localName: d.companyName || '',
               country: d.country || '未知',
-              industry: '未知產業',
-              companyType: '未知類型',
+              industry: scoreObj?.industry || '未知產業',
+              companyType: scoreObj?.companyType || '未知類型',
+              employeeCount: scoreObj?.employeeCount || '',
+              revenue: scoreObj?.revenue || '',
               qualityScore: scoreObj?.totalScore || 75,
               qualityStatus: d.qualityStatus || 'NEW',
               conversionStatus: d.conversionStatus || 'NONE',
               sourceCount: 1,
               website: d.website || '',
+              email: scoreObj?.email || '',
+              phone: scoreObj?.phone || '',
+              linkedin: scoreObj?.linkedin || '',
+              notes: scoreObj?.notes || '',
+              sources: d.sources || [],
               createdAt: d.createdAt
             };
           }));
@@ -265,8 +272,20 @@ function SearchResultsContent() {
                     />
                   </td>
                   <td className={styles.td}>
-                    <div className={styles.companyName}>{row.name}</div>
-                    <div className={styles.companyLocalName}>{row.localName}</div>
+                    <div className={styles.companyName}>
+                      {row.website ? (
+                        <a href={row.website} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                          {row.name}
+                        </a>
+                      ) : row.name}
+                    </div>
+                    <div className={styles.companyLocalName}>
+                      {row.website ? (
+                        <a href={row.website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)', textDecoration: 'none', fontSize: '0.78rem' }}>
+                          {row.localName} ↗
+                        </a>
+                      ) : row.localName}
+                    </div>
                   </td>
                   <td className={styles.td}>{row.country}</td>
                   <td className={styles.td}>{row.industry}</td>
@@ -353,6 +372,10 @@ function SearchResultsContent() {
         data={detailData}
         isOpen={!!detailData}
         onClose={() => setDetailData(null)}
+        onUpdated={(updated) => {
+          setResults(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r));
+          setDetailData(updated);
+        }}
       />
     </div>
   );
