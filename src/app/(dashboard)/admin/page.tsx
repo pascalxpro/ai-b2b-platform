@@ -117,27 +117,49 @@ export default function AdminPage() {
     });
   }, []);
 
-  // Drag handlers
-  const handleDragStart = (idx: number) => {
+  // Drag handlers - safe reorder
+  const handleDragStart = (e: React.DragEvent, idx: number) => {
     dragItem.current = idx;
     setDragIdx(idx);
+    e.dataTransfer.effectAllowed = 'move';
+    // Required for Firefox
+    e.dataTransfer.setData('text/plain', String(idx));
   };
 
-  const handleDragEnter = (idx: number) => {
+  const handleDragEnter = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
     dragOverItem.current = idx;
     setDragOverIdx(idx);
   };
 
-  const handleDragEnd = () => {
-    if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
-      setEngines(prev => {
-        const next = [...prev];
-        const draggedItem = next[dragItem.current!];
-        next.splice(dragItem.current!, 1);
-        next.splice(dragOverItem.current!, 0, draggedItem);
-        return next;
-      });
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIdx: number) => {
+    e.preventDefault();
+    const fromIdx = dragItem.current;
+    if (fromIdx === null || fromIdx === dropIdx) {
+      setDragIdx(null);
+      setDragOverIdx(null);
+      dragItem.current = null;
+      dragOverItem.current = null;
+      return;
     }
+    setEngines(prev => {
+      const next = [...prev];
+      const [movedItem] = next.splice(fromIdx, 1);
+      next.splice(dropIdx, 0, movedItem);
+      return next;
+    });
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
     dragItem.current = null;
     dragOverItem.current = null;
     setDragIdx(null);
@@ -291,9 +313,10 @@ export default function AdminPage() {
                     <div
                       className={`${styles.engineCard} ${!engine.enabled ? styles.engineCardDisabled : ''} ${dragIdx === idx ? styles.engineCardDragging : ''} ${dragOverIdx === idx ? styles.engineDragOver : ''}`}
                       draggable
-                      onDragStart={() => handleDragStart(idx)}
-                      onDragEnter={() => handleDragEnter(idx)}
-                      onDragOver={(e) => e.preventDefault()}
+                      onDragStart={(e) => handleDragStart(e, idx)}
+                      onDragEnter={(e) => handleDragEnter(e, idx)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, idx)}
                       onDragEnd={handleDragEnd}
                     >
                       {/* Drag Handle */}
