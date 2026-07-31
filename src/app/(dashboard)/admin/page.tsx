@@ -325,16 +325,6 @@ export default function AdminPage() {
             此功能僅限系統管理員使用。<br />
             請使用管理員帳號登入以存取系統設定。
           </p>
-          <div className={styles.authInfo}>
-            <div className={styles.authInfoItem}>
-              <span className={styles.authInfoLabel}>預設帳號</span>
-              <code className={styles.authCode}>admin@b2b.com</code>
-            </div>
-            <div className={styles.authInfoItem}>
-              <span className={styles.authInfoLabel}>預設密碼</span>
-              <code className={styles.authCode}>admin123</code>
-            </div>
-          </div>
           <button
             className={styles.authLoginBtn}
             onClick={() => router.push('/login')}
