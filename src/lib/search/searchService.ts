@@ -4,21 +4,46 @@ import { searchWithTavily, SearchProviderResult } from './providers/tavilyProvid
 
 // Non-B2B domain blocklist
 const BLOCKLIST = [
+  // Search engines & their subdomains
   'yahoo.com', 'uservoice.com', 'yimg.com', 'bing.com',
   'google.com', 'google.co', 'googleapis.com', 'gstatic.com',
+  'brave.com', 'brave.app', 'bravesoftware.com',
+  'duckduckgo.com',
+  // Reference / wiki
   'wikipedia.org', 'wikimedia.org', 'wiktionary.org',
+  // Video / social media
   'youtube.com', 'youtu.be',
   'facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'linkedin.com', 'tiktok.com',
   'reddit.com', 'pinterest.com', 'tumblr.com',
-  'amazon.com', 'amazon.co', 'ebay.com',
+  // E-commerce marketplaces
+  'amazon.com', 'amazon.co', 'ebay.com', 'shopee.com', 'lazada.com',
+  // Travel
   'tripadvisor.com', 'booking.com', 'expedia.com', 'kayak.com', 'kayak.co',
   'hoponworld.com', 'japan-guide.com', 'japan.travel', 'jnto.go.jp',
+  // Chinese platforms
   'baidu.com', 'zhihu.com', 'weibo.com', 'qq.com',
+  // News
   'nytimes.com', 'reuters.com', 'bbc.com', 'cnn.com', 'usnews.com', 'upi.com',
+  // Tech
   'microsoft.com', 'apple.com', 'github.com', 'stackoverflow.com',
-  'cloudflare.com', 'akamai.com', 'fastly.net',
+  'hackerone.com', 'torproject.org',
+  // CDN / infra
+  'cloudflare.com', 'akamai.com', 'fastly.net', 'jsdelivr.net',
+  // Short links
   'wa.me', 'bit.ly', 't.co', 'goo.gl',
+  // Schemas / standards
+  'w3.org', 'schema.org', 'schemas.live.com',
 ];
+
+function cleanUrl(url: string): string {
+  return url
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
 
 function isBlockedUrl(url: string): boolean {
   const lower = url.toLowerCase();
@@ -341,17 +366,26 @@ export async function executeSearchTask(taskId: string) {
         for (const item of outcome.value) {
           if (!item.website || !item.companyName) continue;
           
+          // Clean HTML entities from URL
+          const cleanedWebsite = cleanUrl(item.website);
+          
+          // Re-check blocklist on cleaned URL
+          if (isBlockedUrl(cleanedWebsite)) continue;
+          
           // Deduplicate by hostname
           let hostname = '';
-          try { hostname = new URL(item.website).hostname.replace('www.', ''); } catch { continue; }
+          try { hostname = new URL(cleanedWebsite).hostname.replace('www.', ''); } catch { continue; }
+          
+          // Store the cleaned version
+          const cleanedItem = { ...item, website: cleanedWebsite };
           
           if (!mergedMap.has(hostname)) {
-            mergedMap.set(hostname, { result: item, provider: providerName });
+            mergedMap.set(hostname, { result: cleanedItem, provider: providerName });
           } else {
             // If this provider has a better company name (not just hostname), update it
             const existing = mergedMap.get(hostname)!;
-            if (item.companyName !== hostname && existing.result.companyName === hostname) {
-              mergedMap.set(hostname, { result: item, provider: providerName });
+            if (cleanedItem.companyName !== hostname && existing.result.companyName === hostname) {
+              mergedMap.set(hostname, { result: cleanedItem, provider: providerName });
             }
           }
         }
