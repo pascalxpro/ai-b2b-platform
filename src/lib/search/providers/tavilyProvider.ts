@@ -8,7 +8,8 @@ export interface SearchProviderResult {
 export async function searchWithTavily(
   query: string,
   targetCount: number,
-  apiKeysString: string
+  apiKeysString: string,
+  options?: { includeDomains?: string[] }
 ): Promise<{ results: SearchProviderResult[]; usedKey: string }> {
   const keys = apiKeysString
     .split(',')
@@ -36,7 +37,7 @@ export async function searchWithTavily(
           api_key: key,
           query: query,
           search_depth: 'basic',
-          include_domains: [],
+          include_domains: options?.includeDomains || [],
           exclude_domains: [],
           max_results: Math.min(targetCount, 20),
         }),

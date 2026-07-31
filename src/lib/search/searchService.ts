@@ -361,6 +361,32 @@ export async function executeSearchTask(taskId: string) {
     console.log(`[SearchService] Short query: "${shortQuery}"`);
     console.log(`[SearchService] Target TLDs: ${targetTlds.join(', ') || 'none'}`);
 
+    // Build API engine parameters
+    // include_domains for Tavily/Exa — wildcard TLD domains (e.g. "*.jp" doesn't work, use TLD suffix)
+    const apiIncludeDomains = mainTlds.map(tld => tld.replace(/^\./, ''));  // e.g. [".jp"] -> ["jp"]
+    // Serper gl/hl — Google country/language codes
+    const COUNTRY_GL: Record<string, { gl: string; hl: string }> = {
+      '日本': { gl: 'jp', hl: 'ja' },
+      '台灣': { gl: 'tw', hl: 'zh-TW' },
+      '美國': { gl: 'us', hl: 'en' },
+      '越南': { gl: 'vn', hl: 'vi' },
+      '泰國': { gl: 'th', hl: 'th' },
+      '德國': { gl: 'de', hl: 'de' },
+      '韓國': { gl: 'kr', hl: 'ko' },
+      '中國': { gl: 'cn', hl: 'zh-CN' },
+      '印尼': { gl: 'id', hl: 'id' },
+      '馬來西亞': { gl: 'my', hl: 'ms' },
+      '印度': { gl: 'in', hl: 'en' },
+      '英國': { gl: 'uk', hl: 'en' },
+      '法國': { gl: 'fr', hl: 'fr' },
+      '義大利': { gl: 'it', hl: 'it' },
+      '西班牙': { gl: 'es', hl: 'es' },
+      '澳洲': { gl: 'au', hl: 'en' },
+      '菲律賓': { gl: 'ph', hl: 'en' },
+      '新加坡': { gl: 'sg', hl: 'en' },
+    };
+    const serperGeo = countries.length === 1 ? COUNTRY_GL[countries[0]] : undefined;
+
     const settings = await loadSettingsFromDb();
     const enabledEngines = (settings.searchEngines || []).filter(e => e.enabled);
 
@@ -390,7 +416,9 @@ export async function executeSearchTask(taskId: string) {
           if (keys.trim()) {
             providerPromises.push({
               name,
-              promise: searchWithTavily(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+              promise: searchWithTavily(fullQuery, requestedCount, keys, {
+                includeDomains: apiIncludeDomains.length > 0 ? apiIncludeDomains : undefined,
+              }).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
             });
           }
           break;
@@ -399,7 +427,7 @@ export async function executeSearchTask(taskId: string) {
           if (keys.trim()) {
             providerPromises.push({
               name,
-              promise: searchWithSerper(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+              promise: searchWithSerper(fullQuery, requestedCount, keys, serperGeo).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
             });
           }
           break;
@@ -426,7 +454,9 @@ export async function executeSearchTask(taskId: string) {
           if (keys.trim()) {
             providerPromises.push({
               name,
-              promise: searchWithExa(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+              promise: searchWithExa(fullQuery, requestedCount, keys, {
+                includeDomains: apiIncludeDomains.length > 0 ? apiIncludeDomains : undefined,
+              }).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
             });
           }
           break;

@@ -4,7 +4,7 @@ export async function searchWithExa(
   query: string,
   targetCount: number,
   apiKeysString: string,
-  extraConfig?: string
+  options?: { includeDomains?: string[] }
 ): Promise<{ results: SearchProviderResult[]; usedKey: string }> {
   const keys = apiKeysString.split(',').map((k) => k.trim()).filter(Boolean);
 
@@ -17,7 +17,12 @@ export async function searchWithExa(
           'x-api-key': key,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query, numResults: targetCount, type: 'keyword' }),
+        body: JSON.stringify({
+          query,
+          numResults: Math.min(targetCount, 20),
+          type: 'keyword',
+          ...(options?.includeDomains?.length ? { includeDomains: options.includeDomains } : {}),
+        }),
       });
 
       if (!response.ok) {

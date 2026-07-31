@@ -4,7 +4,7 @@ export async function searchWithSerper(
   query: string,
   targetCount: number,
   apiKeysString: string,
-  extraConfig?: string
+  options?: { gl?: string; hl?: string }
 ): Promise<{ results: SearchProviderResult[]; usedKey: string }> {
   const keys = apiKeysString.split(',').map((k) => k.trim()).filter(Boolean);
 
@@ -17,7 +17,12 @@ export async function searchWithSerper(
           'X-API-KEY': key,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ q: query, num: targetCount }),
+        body: JSON.stringify({
+          q: query,
+          num: targetCount,
+          ...(options?.gl ? { gl: options.gl } : {}),
+          ...(options?.hl ? { hl: options.hl } : {}),
+        }),
       });
 
       if (!response.ok) {
