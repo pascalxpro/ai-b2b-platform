@@ -1,6 +1,15 @@
 import { prisma } from '@/lib/db/prisma';
 import { getSystemSettings } from '@/lib/settings/settingsService';
 import { searchWithTavily, SearchProviderResult } from './providers/tavilyProvider';
+import { searchWithSerper } from './providers/serperProvider';
+import { searchWithGoogleCse } from './providers/googleCseProvider';
+import { searchWithBingApi } from './providers/bingApiProvider';
+import { searchWithExa } from './providers/exaProvider';
+import { searchWithSearxng } from './providers/searxngProvider';
+import { searchWithBraveApi } from './providers/braveApiProvider';
+
+// Re-export for other modules
+export type { SearchProviderResult } from './providers/tavilyProvider';
 
 // Non-B2B domain blocklist
 const BLOCKLIST = [
@@ -284,69 +293,115 @@ export async function executeSearchTask(taskId: string) {
     console.log(`[SearchService] Short query: "${shortQuery}"`);
 
     const settings = getSystemSettings();
-    const tavilyKeys = settings.tavilyApiKeys || '';
+    const enabledEngines = (settings.searchEngines || []).filter(e => e.enabled);
 
-    // ──────────────────────────────────────────
-    // Run ALL search engines in PARALLEL, merge
-    // ──────────────────────────────────────────
+    console.log(`[SearchService] Enabled engines: ${enabledEngines.map(e => e.id).join(', ')}`);
+
+    // ──────────────────────────────────────────────
+    // Run ALL ENABLED engines in PARALLEL, merge
+    // ──────────────────────────────────────────────
     const providerPromises: { name: string; promise: Promise<SearchProviderResult[]> }[] = [];
 
-    // Tavily (if API keys configured)
-    if (tavilyKeys && tavilyKeys.trim()) {
-      providerPromises.push({
-        name: 'Tavily AI',
-        promise: searchWithTavily(fullQuery, requestedCount, tavilyKeys)
-          .then(r => r.results || [])
-          .catch(e => { console.warn('[Tavily] Failed:', e.message); return []; }),
-      });
-    }
+    // Engine name map for display
+    const ENGINE_NAMES: Record<string, string> = {
+      tavily: 'Tavily AI', serper: 'Serper.dev', google_cse: 'Google CSE',
+      bing_api: 'Bing API', exa: 'Exa.ai', searxng: 'SearXNG',
+      brave_api: 'Brave API', yahoo: 'Yahoo Search', duckduckgo: 'DuckDuckGo',
+      bing_scraper: 'Bing Search', brave_scraper: 'Brave Search',
+    };
 
-    // DuckDuckGo (full + short query)
-    providerPromises.push({
-      name: 'DuckDuckGo',
-      promise: searchDDG(fullQuery, requestedCount).catch(() => []),
-    });
-    if (shortQuery !== fullQuery) {
-      providerPromises.push({
-        name: 'DuckDuckGo',
-        promise: searchDDG(shortQuery, requestedCount).catch(() => []),
-      });
-    }
+    for (const engine of enabledEngines) {
+      const name = ENGINE_NAMES[engine.id] || engine.id;
+      const keys = engine.apiKeys || '';
+      const extra = engine.extraConfig || '';
 
-    // Yahoo (full + short query)
-    providerPromises.push({
-      name: 'Yahoo Search',
-      promise: searchYahoo(fullQuery, requestedCount).catch(() => []),
-    });
-    if (shortQuery !== fullQuery) {
-      providerPromises.push({
-        name: 'Yahoo Search',
-        promise: searchYahoo(shortQuery, requestedCount).catch(() => []),
-      });
-    }
+      // Dispatch to the correct provider
+      switch (engine.id) {
+        case 'tavily':
+          if (keys.trim()) {
+            providerPromises.push({
+              name,
+              promise: searchWithTavily(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+            });
+          }
+          break;
 
-    // Bing (full + short query)
-    providerPromises.push({
-      name: 'Bing Search',
-      promise: searchBing(fullQuery, requestedCount).catch(() => []),
-    });
-    if (shortQuery !== fullQuery) {
-      providerPromises.push({
-        name: 'Bing Search',
-        promise: searchBing(shortQuery, requestedCount).catch(() => []),
-      });
-    }
+        case 'serper':
+          if (keys.trim()) {
+            providerPromises.push({
+              name,
+              promise: searchWithSerper(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+            });
+          }
+          break;
 
-    // Brave (full + short query)
-    providerPromises.push({
-      name: 'Brave Search',
-      promise: searchBrave(fullQuery, requestedCount).catch(() => []),
-    });
-    if (shortQuery !== fullQuery) {
-      providerPromises.push({
-        name: 'Brave Search',
-        promise: searchBrave(shortQuery, requestedCount).catch(() => []),
-      });
+        case 'google_cse':
+          if (keys.trim() && extra.trim()) {
+            providerPromises.push({
+              name,
+              promise: searchWithGoogleCse(fullQuery, requestedCount, keys, extra).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+            });
+          }
+          break;
+
+        case 'bing_api':
+          if (keys.trim()) {
+            providerPromises.push({
+              name,
+              promise: searchWithBingApi(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+            });
+          }
+          break;
+
+        case 'exa':
+          if (keys.trim()) {
+            providerPromises.push({
+              name,
+              promise: searchWithExa(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+            });
+          }
+          break;
+
+        case 'searxng':
+          if (extra.trim()) {
+            providerPromises.push({
+              name,
+              promise: searchWithSearxng(fullQuery, requestedCount, '', extra).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+            });
+          }
+          break;
+
+        case 'brave_api':
+          if (keys.trim()) {
+            providerPromises.push({
+              name,
+              promise: searchWithBraveApi(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+            });
+          }
+          break;
+
+        // Free scrapers (no API key needed)
+        case 'yahoo':
+          providerPromises.push({ name, promise: searchYahoo(fullQuery, requestedCount).catch(() => []) });
+          if (shortQuery !== fullQuery) {
+            providerPromises.push({ name, promise: searchYahoo(shortQuery, requestedCount).catch(() => []) });
+          }
+          break;
+
+        case 'duckduckgo':
+          providerPromises.push({ name, promise: searchDDG(fullQuery, requestedCount).catch(() => []) });
+          if (shortQuery !== fullQuery) {
+            providerPromises.push({ name, promise: searchDDG(shortQuery, requestedCount).catch(() => []) });
+          }
+          break;
+
+        case 'bing_scraper':
+          providerPromises.push({ name, promise: searchBing(fullQuery, requestedCount).catch(() => []) });
+          if (shortQuery !== fullQuery) {
+            providerPromises.push({ name, promise: searchBing(shortQuery, requestedCount).catch(() => []) });
+          }
+          break;
+      }
     }
 
     // Wait for ALL providers to complete

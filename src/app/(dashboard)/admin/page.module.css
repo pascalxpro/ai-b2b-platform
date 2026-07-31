@@ -392,3 +392,200 @@
   align-self: flex-start;
   margin-top: var(--space-2);
 }
+
+/* ─── Engine Management Cards ─── */
+.engineList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 800px;
+}
+
+.engineSeparator {
+  padding: 12px 16px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-top: 1px dashed var(--color-border);
+}
+
+.engineCard {
+  display: flex;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  transition: all 0.2s ease;
+  align-items: flex-start;
+  cursor: grab;
+  user-select: none;
+}
+
+.engineCard:active {
+  cursor: grabbing;
+}
+
+.engineCard:hover {
+  border-color: var(--color-primary-light, rgba(99,102,241,0.3));
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.engineCardDisabled {
+  opacity: 0.55;
+}
+
+.engineCardDragging {
+  opacity: 0.4;
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 16px rgba(99,102,241,0.2);
+}
+
+.engineDragOver {
+  border-color: var(--color-primary);
+  background: var(--color-primary-glow, rgba(99,102,241,0.05));
+}
+
+.dragHandle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  padding: 4px 0;
+  flex-shrink: 0;
+  cursor: grab;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.engineCheckbox {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.engineCheckbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.engineContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.engineHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.engineName {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.engineOrder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-primary-glow, rgba(99,102,241,0.1));
+  color: var(--color-primary);
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.engineTypeBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badgeApi {
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.badgeFree {
+  background: var(--color-success-bg, rgba(16,185,129,0.1));
+  color: var(--color-success, #10b981);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.engineKeySection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.engineKeyLabel {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.engineKeyInput {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  background: var(--color-surface-alt, #1a1a2e);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.82rem;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.engineKeyInput:focus {
+  border-color: var(--color-primary);
+}
+
+.engineKeyInput::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+}
+
+.engineMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.engineWarning {
+  color: var(--color-warning, #f59e0b);
+}
+
+.engineSubtitle {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text);
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}

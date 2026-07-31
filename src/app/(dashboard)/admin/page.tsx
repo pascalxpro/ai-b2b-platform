@@ -1,35 +1,50 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './page.module.css';
 import { 
-  Settings, 
-  Plus, 
-  Search, 
-  Edit2, 
-  Ban, 
-  Shield, 
-  Globe, 
-  Database, 
-  ToggleLeft,
-  ToggleRight,
-  CheckCircle2, 
-  XCircle,
-  Briefcase
+  Settings, Plus, Search, Edit2, Ban, GripVertical,
+  CheckCircle2, AlertTriangle
 } from 'lucide-react';
+
+// Engine registry (must match server-side ENGINE_REGISTRY)
+const ENGINE_REGISTRY = [
+  { id: 'tavily', name: 'Tavily AI Search', type: 'api' as const, freeQuota: '1,000次/月', needsApiKey: true },
+  { id: 'serper', name: 'Serper.dev (Google)', type: 'api' as const, freeQuota: '2,500次/月', needsApiKey: true },
+  { id: 'google_cse', name: 'Google Custom Search', type: 'api' as const, freeQuota: '100次/天', needsApiKey: true, needsExtraConfig: true, extraConfigLabel: 'CX ID', extraConfigPlaceholder: '搜尋引擎 CX ID' },
+  { id: 'bing_api', name: 'Bing Web Search API', type: 'api' as const, freeQuota: '1,000次/月', needsApiKey: true },
+  { id: 'exa', name: 'Exa.ai', type: 'api' as const, freeQuota: '1,000次/月', needsApiKey: true },
+  { id: 'searxng', name: 'SearXNG (自架)', type: 'api' as const, freeQuota: '無限 (自架)', needsApiKey: false, needsExtraConfig: true, extraConfigLabel: 'Instance URL', extraConfigPlaceholder: 'https://your-searxng-instance.com' },
+  { id: 'brave_api', name: 'Brave Search API', type: 'api' as const, freeQuota: '2,000次/月', needsApiKey: true },
+  { id: 'yahoo', name: 'Yahoo Search (免費爬蟲)', type: 'scraper' as const, freeQuota: '無限', needsApiKey: false },
+  { id: 'duckduckgo', name: 'DuckDuckGo (免費爬蟲)', type: 'scraper' as const, freeQuota: '無限', needsApiKey: false, warning: '雲端 IP 可能被封鎖' },
+  { id: 'bing_scraper', name: 'Bing Search (免費爬蟲)', type: 'scraper' as const, freeQuota: '無限', needsApiKey: false, warning: '結果品質可能受限' },
+];
+
+interface EngineState {
+  id: string;
+  enabled: boolean;
+  apiKeys: string;
+  extraConfig: string;
+}
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('users');
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Settings State
-  const [tavilyApiKeys, setTavilyApiKeys] = useState('');
-  const [providerPriorityMode, setProviderPriorityMode] = useState<'tavily_first' | 'googlethis_first'>('tavily_first');
+  // Engine states
+  const [engines, setEngines] = useState<EngineState[]>([]);
   const [maxSearchLimit, setMaxSearchLimit] = useState(50);
   const [defaultTargetCount, setDefaultTargetCount] = useState(100);
   const [savingSettings, setSavingSettings] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState('');
+
+  // Drag state
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   useEffect(() => {
     // Fetch users
@@ -53,47 +68,103 @@ export default function AdminPage() {
       })
       .catch(() => setLoading(false));
 
-    // Fetch System Settings
+    // Fetch Settings
     fetch('/api/admin/settings')
       .then(r => r.json())
       .then(data => {
         if (data) {
-          if (data.tavilyApiKeys !== undefined) setTavilyApiKeys(data.tavilyApiKeys);
-          if (Array.isArray(data.providerPriority)) {
-            if (data.providerPriority[0] === 'googlethis') {
-              setProviderPriorityMode('googlethis_first');
-            } else {
-              setProviderPriorityMode('tavily_first');
-            }
-          }
           if (data.maxSearchLimit) setMaxSearchLimit(data.maxSearchLimit);
           if (data.defaultTargetCount) setDefaultTargetCount(data.defaultTargetCount);
+          
+          if (Array.isArray(data.searchEngines) && data.searchEngines.length > 0) {
+            // Use saved order
+            const engList: EngineState[] = data.searchEngines.map((e: any) => ({
+              id: e.id,
+              enabled: !!e.enabled,
+              apiKeys: e.apiKeys || '',
+              extraConfig: e.extraConfig || '',
+            }));
+            // Add any new engines not in saved data
+            const savedIds = new Set(engList.map(e => e.id));
+            for (const reg of ENGINE_REGISTRY) {
+              if (!savedIds.has(reg.id)) {
+                engList.push({ id: reg.id, enabled: false, apiKeys: '', extraConfig: '' });
+              }
+            }
+            setEngines(engList);
+          } else {
+            // Default
+            setEngines(ENGINE_REGISTRY.map(e => ({
+              id: e.id,
+              enabled: e.id === 'tavily' || e.id === 'yahoo',
+              apiKeys: e.id === 'tavily' ? (data.tavilyApiKeys || '') : '',
+              extraConfig: '',
+            })));
+          }
         }
       })
       .catch(console.error);
   }, []);
 
+  // Engine helpers
+  const getRegistryInfo = (id: string) => ENGINE_REGISTRY.find(e => e.id === id);
+
+  const updateEngine = useCallback((idx: number, field: keyof EngineState, value: any) => {
+    setEngines(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: value };
+      return next;
+    });
+  }, []);
+
+  // Drag handlers
+  const handleDragStart = (idx: number) => {
+    dragItem.current = idx;
+    setDragIdx(idx);
+  };
+
+  const handleDragEnter = (idx: number) => {
+    dragOverItem.current = idx;
+    setDragOverIdx(idx);
+  };
+
+  const handleDragEnd = () => {
+    if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+      setEngines(prev => {
+        const next = [...prev];
+        const draggedItem = next[dragItem.current!];
+        next.splice(dragItem.current!, 1);
+        next.splice(dragOverItem.current!, 0, draggedItem);
+        return next;
+      });
+    }
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     setSaveSuccessMessage('');
     try {
-      const providerPriority = providerPriorityMode === 'tavily_first'
-        ? ['tavily', 'googlethis']
-        : ['googlethis', 'tavily'];
-
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tavilyApiKeys,
-          providerPriority,
+          searchEngines: engines.map(e => ({
+            id: e.id,
+            enabled: e.enabled,
+            apiKeys: e.apiKeys,
+            extraConfig: e.extraConfig,
+          })),
           maxSearchLimit,
-          defaultTargetCount
+          defaultTargetCount,
         })
       });
 
       if (res.ok) {
-        setSaveSuccessMessage('設定已成功儲存！');
+        setSaveSuccessMessage('✅ 設定已成功儲存！');
         setTimeout(() => setSaveSuccessMessage(''), 3000);
       } else {
         alert('儲存失敗');
@@ -105,6 +176,9 @@ export default function AdminPage() {
       setSavingSettings(false);
     }
   };
+
+  // Find first scraper index for separator
+  const firstScraperIdx = engines.findIndex(e => getRegistryInfo(e.id)?.type === 'scraper');
 
   return (
     <div className={styles.container}>
@@ -126,7 +200,7 @@ export default function AdminPage() {
           className={`${styles.tab} ${activeTab === 'providers' ? styles.activeTab : ''}`}
           onClick={() => setActiveTab('providers')}
         >
-          Provider 與 API Key 管理
+          搜尋引擎管理
         </button>
         <button 
           className={`${styles.tab} ${activeTab === 'settings' ? styles.activeTab : ''}`}
@@ -193,50 +267,111 @@ export default function AdminPage() {
           </>
         )}
 
-        {/* Tab 2: Providers & API Keys */}
+        {/* Tab 2: Search Engine Management */}
         {activeTab === 'providers' && (
           <div className={styles.settingsGrid}>
-            <div className={`${styles.settingsCard} glass-2`}>
-              <h3 className={styles.settingsTitle}>Tavily API Key 設定 (多組備援)</h3>
-              <div className={styles.formGroup}>
-                <div className={styles.formRow} style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px' }}>
-                  <div>
-                    <div className={styles.label}>Tavily API Keys</div>
-                    <div className={styles.desc}>
-                      支援設定多組 Key。當第一組 Key 額度用完 (429/Quota Limit) 後，系統將自動倒退使用下一組 Key。
-                      <br />
-                      <strong>格式：</strong>以半形逗號 <code>,</code> 分隔多組 API Key (例如：<code>tvly-Key1, tvly-Key2, tvly-Key3</code>)
-                    </div>
-                  </div>
-                  <textarea 
-                    className={styles.inputField} 
-                    style={{ width: '100%', minHeight: '90px', fontFamily: 'monospace' }}
-                    placeholder="tvly-xxxxxxxxxxxx, tvly-yyyyyyy"
-                    value={tavilyApiKeys}
-                    onChange={e => setTavilyApiKeys(e.target.value)}
-                  />
-                </div>
-              </div>
+            <div className={styles.engineSubtitle}>
+              拖拽引擎卡片調整搜尋順序（上方優先）。勾選啟用的引擎，每個引擎支援多組 API Key（以逗號分隔），額度用完自動切換下一組。
             </div>
 
-            <div className={`${styles.settingsCard} glass-2`}>
-              <h3 className={styles.settingsTitle}>搜尋平台優先順序設定</h3>
-              <div className={styles.formGroup}>
-                <div className={styles.formRow}>
-                  <div>
-                    <div className={styles.label}>搜尋引擎優先調用順序</div>
-                    <div className={styles.desc}>選擇搜尋任務執行時，系統嘗試搜尋平台的優先順序</div>
-                  </div>
-                  <select 
-                    className={styles.inputField}
-                    value={providerPriorityMode}
-                    onChange={e => setProviderPriorityMode(e.target.value as any)}
-                  >
-                    <option value="tavily_first">1. Tavily AI Search  ➜  2. GoogleThis (免費爬蟲)</option>
-                    <option value="googlethis_first">1. GoogleThis (免費爬蟲)  ➜  2. Tavily AI Search</option>
-                  </select>
-                </div>
-              </div>
+            <div className={styles.engineList}>
+              {engines.map((engine, idx) => {
+                const info = getRegistryInfo(engine.id);
+                if (!info) return null;
+                const isScraper = info.type === 'scraper';
+                const showSeparator = idx === firstScraperIdx && firstScraperIdx > 0;
+
+                return (
+                  <React.Fragment key={engine.id}>
+                    {showSeparator && (
+                      <div className={styles.engineSeparator}>
+                        免費爬蟲引擎（無需 API Key）
+                      </div>
+                    )}
+                    <div
+                      className={`${styles.engineCard} ${!engine.enabled ? styles.engineCardDisabled : ''} ${dragIdx === idx ? styles.engineCardDragging : ''} ${dragOverIdx === idx ? styles.engineDragOver : ''}`}
+                      draggable
+                      onDragStart={() => handleDragStart(idx)}
+                      onDragEnter={() => handleDragEnter(idx)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDragEnd={handleDragEnd}
+                    >
+                      {/* Drag Handle */}
+                      <div className={styles.dragHandle}>
+                        <GripVertical size={18} />
+                      </div>
+
+                      {/* Checkbox */}
+                      <div className={styles.engineCheckbox}>
+                        <input
+                          type="checkbox"
+                          checked={engine.enabled}
+                          onChange={(e) => { e.stopPropagation(); updateEngine(idx, 'enabled', e.target.checked); }}
+                        />
+                      </div>
+
+                      {/* Content */}
+                      <div className={styles.engineContent}>
+                        {/* Header row */}
+                        <div className={styles.engineHeader}>
+                          <span className={styles.engineOrder}>{idx + 1}</span>
+                          <span className={styles.engineName}>{info.name}</span>
+                          <span className={`${styles.engineTypeBadge} ${isScraper ? styles.badgeFree : styles.badgeApi}`}>
+                            {isScraper ? 'FREE' : 'API'}
+                          </span>
+                        </div>
+
+                        {/* API Key input */}
+                        {info.needsApiKey && (
+                          <div className={styles.engineKeySection}>
+                            <label className={styles.engineKeyLabel}>API Keys（多組以逗號分隔，額度用完自動切換）</label>
+                            <textarea
+                              className={styles.engineKeyInput}
+                              placeholder={`輸入 ${info.name} API Key，多組以逗號分隔`}
+                              value={engine.apiKeys}
+                              onChange={(e) => updateEngine(idx, 'apiKeys', e.target.value)}
+                              rows={1}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        )}
+
+                        {/* Extra config (CX ID, Instance URL) */}
+                        {info.needsExtraConfig && (
+                          <div className={styles.engineKeySection}>
+                            <label className={styles.engineKeyLabel}>{info.extraConfigLabel}</label>
+                            <input
+                              type="text"
+                              className={styles.engineKeyInput}
+                              style={{ minHeight: '36px' }}
+                              placeholder={info.extraConfigPlaceholder}
+                              value={engine.extraConfig}
+                              onChange={(e) => updateEngine(idx, 'extraConfig', e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        )}
+
+                        {/* Meta info */}
+                        <div className={styles.engineMeta}>
+                          {info.warning ? (
+                            <>
+                              <AlertTriangle size={13} className={styles.engineWarning} />
+                              <span className={styles.engineWarning}>{info.warning}</span>
+                              <span>·</span>
+                            </>
+                          ) : !isScraper ? (
+                            <>
+                              <CheckCircle2 size={13} style={{ color: '#10b981' }} />
+                            </>
+                          ) : null}
+                          <span>💡 免費 {info.freeQuota}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </React.Fragment>
+                );
+              })}
             </div>
 
             {saveSuccessMessage && (
@@ -250,12 +385,12 @@ export default function AdminPage() {
               onClick={handleSaveSettings}
               disabled={savingSettings}
             >
-              {savingSettings ? '儲存中...' : '儲存 Provider 設定'}
+              {savingSettings ? '儲存中...' : '💾 儲存引擎設定'}
             </button>
           </div>
         )}
 
-        {/* Tab 3: Settings */}
+        {/* Tab 3: System Settings */}
         {activeTab === 'settings' && (
           <div className={styles.settingsGrid}>
             <div className={`${styles.settingsCard} glass-2`}>
@@ -284,38 +419,6 @@ export default function AdminPage() {
                     value={defaultTargetCount}
                     onChange={e => setDefaultTargetCount(Number(e.target.value))} 
                   />
-                </div>
-              </div>
-            </div>
-
-            <div className={`${styles.settingsCard} glass-2`}>
-              <h3 className={styles.settingsTitle}>搜尋平台與 Key 快速設定</h3>
-              <div className={styles.formGroup}>
-                <div className={styles.formRow} style={{ alignItems: 'flex-start', flexDirection: 'column', gap: '8px' }}>
-                  <div>
-                    <div className={styles.label}>Tavily API Keys (多組以逗號分隔)</div>
-                  </div>
-                  <input 
-                    type="text"
-                    className={styles.inputField} 
-                    style={{ width: '100%', fontFamily: 'monospace' }}
-                    placeholder="tvly-Key1, tvly-Key2"
-                    value={tavilyApiKeys}
-                    onChange={e => setTavilyApiKeys(e.target.value)}
-                  />
-                </div>
-                <div className={styles.formRow}>
-                  <div>
-                    <div className={styles.label}>搜尋引擎優先順序</div>
-                  </div>
-                  <select 
-                    className={styles.inputField}
-                    value={providerPriorityMode}
-                    onChange={e => setProviderPriorityMode(e.target.value as any)}
-                  >
-                    <option value="tavily_first">1. Tavily AI Search  ➜  2. GoogleThis (免費爬蟲)</option>
-                    <option value="googlethis_first">1. GoogleThis (免費爬蟲)  ➜  2. Tavily AI Search</option>
-                  </select>
                 </div>
               </div>
             </div>
