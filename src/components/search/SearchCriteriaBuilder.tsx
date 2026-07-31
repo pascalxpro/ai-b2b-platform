@@ -161,6 +161,11 @@ export default function SearchCriteriaBuilder({
   };
 
   const COMPANY_TYPES = ['製造商', '代理商', '經銷商', '進口商', '批發商'];
+  const CUSTOMER_TYPES = [
+    '咖啡連鎖品牌', '手搖飲品牌', '早餐店連鎖', '冰品與甜點品牌',
+    '食品包材進口商', '餐飲耗材經銷商', '食品容器批發商',
+    '活動與展覽用品供應商', '航空/飯店/餐飲集團', '酒商與酒展活動商',
+  ];
   const COUNTRY_SUGGESTIONS = ['台灣', '日本', '美國', '韓國', '越南', '泰國', '德國'];
   const INDUSTRY_SUGGESTIONS = ['半導體', '電子零組件', '機械設備', '食品加工', '軟體服務'];
 
@@ -509,6 +514,19 @@ export default function SearchCriteriaBuilder({
             <span className={styles.filterLabel}>公司類型</span>
             <div className={styles.checkboxGroup}>
               {COMPANY_TYPES.map(type => (
+                <label key={type} className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={companyTypes.includes(type)}
+                    onChange={() => toggleCompanyType(type)}
+                  />
+                  {type}
+                </label>
+              ))}
+            </div>
+            <span className={styles.filterLabel} style={{ marginTop: 10 }}>目標客戶類型</span>
+            <div className={styles.checkboxGroup}>
+              {CUSTOMER_TYPES.map(type => (
                 <label key={type} className={styles.checkboxLabel}>
                   <input
                     type="checkbox"
