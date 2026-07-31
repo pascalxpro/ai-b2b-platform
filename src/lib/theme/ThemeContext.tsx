@@ -22,7 +22,7 @@ export interface ThemeContextProps {
 const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeMode>('dark');
+  const [theme, setThemeState] = useState<ThemeMode>('light');
   const [palette, setPaletteState] = useState<ColorPalette>(DEFAULT_PALETTE);
   const [customHues, setCustomHuesState] = useState<CustomHues | null>(null);
   const [mounted, setMounted] = useState(false);

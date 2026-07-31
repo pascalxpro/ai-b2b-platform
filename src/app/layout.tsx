@@ -28,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-TW" data-theme="dark" suppressHydrationWarning>
+    <html lang="zh-TW" data-theme="light" suppressHydrationWarning>
       <body className={`${inter.variable} ${notoSansTC.variable} font-sans antialiased`}>
         <ThemeProvider>
           {children}
