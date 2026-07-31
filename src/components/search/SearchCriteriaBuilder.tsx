@@ -423,7 +423,24 @@ export default function SearchCriteriaBuilder({
 
         {savedSearches.length > 0 && (
           <div className={styles.section}>
-            <h3 className={styles.sectionTitle} style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>快速載入已儲存條件</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <h3 className={styles.sectionTitle} style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: 0 }}>快速載入已儲存條件</h3>
+              {selectedSavedId && (
+                <button
+                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 4 }}
+                  onClick={async () => {
+                    if (!confirm('確定要刪除此儲存條件？')) return;
+                    try {
+                      await fetch(`/api/search/saved/${selectedSavedId}`, { method: 'DELETE' });
+                      setSavedSearches(prev => prev.filter(s => s.id !== selectedSavedId));
+                      setSelectedSavedId('');
+                    } catch (e) { console.error(e); }
+                  }}
+                >
+                  <X size={14} /> 刪除
+                </button>
+              )}
+            </div>
             <select
               className={styles.selectField}
               value={selectedSavedId}

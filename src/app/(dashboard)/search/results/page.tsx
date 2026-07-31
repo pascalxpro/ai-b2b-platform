@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Eye, Edit2, Save, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import ResultsToolbar from '@/components/search/ResultsToolbar';
 import BatchActionBar from '@/components/search/BatchActionBar';
 import ResultDetailDrawer from '@/components/search/ResultDetailDrawer';
@@ -18,6 +18,8 @@ function SearchResultsContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [detailData, setDetailData] = useState<any | null>(null);
   const [taskInfo, setTaskInfo] = useState<any | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
 
   // Filter & Sort state
   const [searchTerm, setSearchTerm] = useState('');
@@ -229,6 +231,51 @@ function SearchResultsContent() {
     URL.revokeObjectURL(url);
   };
 
+  const startEdit = (row: any) => {
+    setEditingId(row.id);
+    setEditValues({
+      name: row.name || '',
+      country: row.country || '',
+      industry: row.industry || '',
+      companyType: row.companyType || '',
+      website: row.website || '',
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditValues({});
+  };
+
+  const saveEdit = async (id: string) => {
+    try {
+      await fetch(`/api/search/results/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: editValues.name,
+          country: editValues.country,
+          industry: editValues.industry,
+          companyType: editValues.companyType,
+          website: editValues.website,
+        }),
+      });
+      setResults(prev => prev.map(r => r.id === id ? {
+        ...r,
+        name: editValues.name,
+        localName: editValues.name,
+        country: editValues.country,
+        industry: editValues.industry,
+        companyType: editValues.companyType,
+        website: editValues.website,
+      } : r));
+      setEditingId(null);
+      setEditValues({});
+    } catch (e) {
+      console.error('Save failed:', e);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <Breadcrumb items={[{ label: '搜尋', href: '/' }, { label: '結果池' }]} />
@@ -313,25 +360,47 @@ function SearchResultsContent() {
                     />
                   </td>
                   <td className={styles.td}>
-                    <div className={styles.companyName}>
-                      {row.website ? (
-                        <a href={row.website} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                          {row.name}
-                        </a>
-                      ) : row.name}
-                    </div>
-                    <div className={styles.companyLocalName}>
-                      {row.website ? (
-                        <a href={row.website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)', textDecoration: 'none', fontSize: '0.78rem' }}>
-                          {row.localName} ↗
-                        </a>
-                      ) : row.localName}
-                    </div>
+                    {editingId === row.id ? (
+                      <input
+                        style={{ width: '100%', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.85rem' }}
+                        value={editValues.name || ''}
+                        onChange={e => setEditValues(v => ({ ...v, name: e.target.value }))}
+                      />
+                    ) : (
+                      <>
+                        <div className={styles.companyName}>
+                          {row.website ? (
+                            <a href={row.website} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                              {row.name}
+                            </a>
+                          ) : row.name}
+                        </div>
+                        <div className={styles.companyLocalName}>
+                          {row.website ? (
+                            <a href={row.website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)', textDecoration: 'none', fontSize: '0.78rem' }}>
+                              {row.localName} ↗
+                            </a>
+                          ) : row.localName}
+                        </div>
+                      </>
+                    )}
                   </td>
-                  <td className={styles.td}>{row.country}</td>
-                  <td className={styles.td}>{row.industry}</td>
                   <td className={styles.td}>
-                    <span className={`${styles.badge} ${styles.badgeMuted}`}>{row.companyType}</span>
+                    {editingId === row.id ? (
+                      <input style={{ width: 60, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.82rem' }} value={editValues.country || ''} onChange={e => setEditValues(v => ({ ...v, country: e.target.value }))} />
+                    ) : row.country}
+                  </td>
+                  <td className={styles.td}>
+                    {editingId === row.id ? (
+                      <input style={{ width: 80, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.82rem' }} value={editValues.industry || ''} onChange={e => setEditValues(v => ({ ...v, industry: e.target.value }))} />
+                    ) : row.industry}
+                  </td>
+                  <td className={styles.td}>
+                    {editingId === row.id ? (
+                      <input style={{ width: 80, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.82rem' }} value={editValues.companyType || ''} onChange={e => setEditValues(v => ({ ...v, companyType: e.target.value }))} />
+                    ) : (
+                      <span className={`${styles.badge} ${styles.badgeMuted}`}>{row.companyType}</span>
+                    )}
                   </td>
                   <td className={styles.td}>
                     <span className={`${styles.badge} ${styles.badgeMuted}`} style={{ fontSize: '0.72rem' }}>{row.provider}</span>
@@ -354,12 +423,19 @@ function SearchResultsContent() {
                     </span>
                   </td>
                   <td className={styles.td}>
-                    <button
-                      className={styles.actionBtn}
-                      onClick={() => setDetailData(row)}
-                    >
-                      <Eye size={18} />
-                    </button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {editingId === row.id ? (
+                        <>
+                          <button className={styles.actionBtn} onClick={() => saveEdit(row.id)} title="儲存"><Save size={16} style={{ color: 'var(--color-success)' }} /></button>
+                          <button className={styles.actionBtn} onClick={cancelEdit} title="取消"><X size={16} style={{ color: '#ef4444' }} /></button>
+                        </>
+                      ) : (
+                        <>
+                          <button className={styles.actionBtn} onClick={() => startEdit(row)} title="編輯"><Edit2 size={16} /></button>
+                          <button className={styles.actionBtn} onClick={() => setDetailData(row)} title="檢視"><Eye size={16} /></button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
