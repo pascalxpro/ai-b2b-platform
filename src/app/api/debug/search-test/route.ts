@@ -7,66 +7,56 @@ export async function GET(request: NextRequest) {
     providers: {},
   };
 
-  const testQuery = '日本 食品容器 貿易商 經銷商';
+  const testQuery = 'Japan food container manufacturer wholesaler';
 
-  // Test 1: DuckDuckGo POST
-  try {
-    const ddgStart = Date.now();
-    const ddgRes = await fetch('https://html.duckduckgo.com/html/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-      },
-      body: `q=${encodeURIComponent(testQuery)}&b=`,
-    });
+  // Helper: test a URL and return status + html length + sample
+  async function testEngine(name: string, url: string, method: string = 'GET', body?: string) {
+    const start = Date.now();
+    try {
+      const options: any = {
+        method,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        },
+      };
+      if (body) {
+        options.body = body;
+        options.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      }
+      const res = await fetch(url, options);
+      const html = await res.text();
 
-    const ddgHtml = await ddgRes.text();
-    const ddgLinks = (ddgHtml.match(/class="result__a"/g) || []).length;
-    const ddgUddgLinks = (ddgHtml.match(/uddg=/g) || []).length;
+      // Count external links
+      const externalLinks = (html.match(/https?:\/\/(?!.*(?:bing\.com|yahoo\.com|duckduckgo\.com|brave\.com|google\.com))[^"'\s<>]+/gi) || [])
+        .filter((u: string) => !u.match(/\.(css|js|png|jpg|ico|svg)/i))
+        .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i)
+        .slice(0, 10);
 
-    diagnostics.providers.duckduckgo = {
-      status: ddgRes.status,
-      htmlLength: ddgHtml.length,
-      resultCount: ddgLinks,
-      uddgCount: ddgUddgLinks,
-      timeMs: Date.now() - ddgStart,
-      htmlSample: ddgHtml.substring(0, 500),
-    };
-  } catch (e: any) {
-    diagnostics.providers.duckduckgo = { error: e.message };
+      return {
+        status: res.status,
+        htmlLength: html.length,
+        externalLinkCount: externalLinks.length,
+        sampleLinks: externalLinks.slice(0, 5),
+        timeMs: Date.now() - start,
+      };
+    } catch (e: any) {
+      return { error: e.message, timeMs: Date.now() - start };
+    }
   }
 
-  // Test 2: Yahoo
-  try {
-    const yStart = Date.now();
-    const yRes = await fetch(`https://search.yahoo.com/search?p=${encodeURIComponent(testQuery)}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-      },
-    });
+  // Test all engines in parallel
+  const [ddg, yahoo, bing, brave] = await Promise.all([
+    testEngine('DuckDuckGo', 'https://html.duckduckgo.com/html/', 'POST', `q=${encodeURIComponent(testQuery)}&b=`),
+    testEngine('Yahoo', `https://search.yahoo.com/search?p=${encodeURIComponent(testQuery)}`),
+    testEngine('Bing', `https://www.bing.com/search?q=${encodeURIComponent(testQuery)}`),
+    testEngine('Brave', `https://search.brave.com/search?q=${encodeURIComponent(testQuery)}`),
+  ]);
 
-    const yHtml = await yRes.text();
-    const yLinks = (yHtml.match(/https%3a%2f%2f[^"&]+/gi) || [])
-      .map((m: string) => decodeURIComponent(m).split('/RK=')[0])
-      .filter((u: string) => u.startsWith('http') && !u.includes('yahoo.com') && !u.includes('uservoice.com'));
+  diagnostics.providers = { duckduckgo: ddg, yahoo, bing, brave };
 
-    diagnostics.providers.yahoo = {
-      status: yRes.status,
-      htmlLength: yHtml.length,
-      extractedLinkCount: yLinks.length,
-      sampleLinks: yLinks.slice(0, 5),
-      timeMs: Date.now() - yStart,
-    };
-  } catch (e: any) {
-    diagnostics.providers.yahoo = { error: e.message };
-  }
-
-  // Test 3: Check fetch / DNS / Network
+  // Network info
   try {
     const netRes = await fetch('https://api.ipify.org?format=json');
     const netData = await netRes.json();

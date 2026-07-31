@@ -122,36 +122,100 @@ async function searchBing(query: string, targetCount: number): Promise<SearchPro
     const res = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=zh-TW`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
       },
     });
     if (!res.ok) return [];
 
     const html = await res.text();
+    console.log(`[Bing] HTML length: ${html.length}`);
     const results: SearchProviderResult[] = [];
     const seen = new Set<string>();
-    // Bing organic results: <h2><a href="https://..." ...>Title</a></h2>
-    const regex = /<h2[^>]*>\s*<a[^>]*href="(https?:\/\/[^"]+)"[^>]*>(.*?)<\/a>/gi;
+
+    // Strategy 1: Extract from <cite> tags (Bing shows URLs in cite elements)
+    const citeRegex = /<cite[^>]*>(https?:\/\/[^<]+)<\/cite>/gi;
     let m: RegExpExecArray | null;
-    const clean = (s: string) => s.replace(/<[^>]+>/g, '').trim();
+    while ((m = citeRegex.exec(html)) !== null && results.length < targetCount) {
+      let url = m[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim();
+      // Remove trailing ellipsis
+      url = url.replace(/\s*›.*$/, '').replace(/\s*…$/, '').trim();
+      if (!url.startsWith('http')) url = `https://${url}`;
+      if (isBlockedUrl(url) || seen.has(url)) continue;
+      seen.add(url);
+      let name = 'Enterprise';
+      try { name = new URL(url).hostname.replace('www.', ''); } catch {}
+      results.push({ companyName: name, website: url, title: name, snippet: name });
+    }
 
-    while ((m = regex.exec(html)) !== null && results.length < targetCount) {
-      const href = m[1];
-      const title = clean(m[2]);
-      if (!href.startsWith('http') || isBlockedUrl(href)) continue;
-      if (seen.has(href)) continue;
-      seen.add(href);
+    // Strategy 2: Extract from data-u attributes (some Bing versions)
+    if (results.length === 0) {
+      const dataRegex = /data-u="[^"]*\|(https?:\/\/[^"|]+)/gi;
+      while ((m = dataRegex.exec(html)) !== null && results.length < targetCount) {
+        const url = m[1];
+        if (isBlockedUrl(url) || seen.has(url)) continue;
+        seen.add(url);
+        let name = 'Enterprise';
+        try { name = new URL(url).hostname.replace('www.', ''); } catch {}
+        results.push({ companyName: name, website: url, title: name, snippet: name });
+      }
+    }
 
-      let name = title.split('-')[0].split('|')[0].split(':')[0].trim();
-      if (name.length > 60) name = name.substring(0, 60);
-      results.push({ companyName: name || title, website: href, title, snippet: title });
+    // Strategy 3: Extract real URLs from href that are NOT bing.com
+    if (results.length === 0) {
+      const hrefRegex = /href="(https?:\/\/(?!r\.bing\.com|th\.bing\.com|www\.bing\.com|bing\.com)[^"]+)"/gi;
+      while ((m = hrefRegex.exec(html)) !== null && results.length < targetCount) {
+        const url = m[1];
+        if (isBlockedUrl(url) || seen.has(url)) continue;
+        seen.add(url);
+        let name = 'Enterprise';
+        try { name = new URL(url).hostname.replace('www.', ''); } catch {}
+        results.push({ companyName: name, website: url, title: name, snippet: name });
+      }
     }
 
     console.log(`[Bing] Found ${results.length} results`);
     return results;
   } catch (e: any) {
     console.error('[Bing] Failed:', e.message);
+    return [];
+  }
+}
+// ─── Brave Search ───
+async function searchBrave(query: string, targetCount: number): Promise<SearchProviderResult[]> {
+  console.log(`[Brave] Searching: "${query}"`);
+  try {
+    const res = await fetch(`https://search.brave.com/search?q=${encodeURIComponent(query)}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en;q=0.8',
+      },
+    });
+    if (!res.ok) { console.log(`[Brave] HTTP ${res.status}`); return []; }
+
+    const html = await res.text();
+    console.log(`[Brave] HTML length: ${html.length}`);
+    const results: SearchProviderResult[] = [];
+    const seen = new Set<string>();
+
+    // Brave result cards contain external hrefs
+    const regex = /href="(https?:\/\/(?!search\.brave\.com|brave\.com|cdn\.search\.brave\.com)[^"]+)"/gi;
+    let m: RegExpExecArray | null;
+    while ((m = regex.exec(html)) !== null && results.length < targetCount) {
+      const url = m[1];
+      if (isBlockedUrl(url) || seen.has(url)) continue;
+      if (/\.(css|js|ico|png|jpg|svg|woff|ttf)(\?|$)/i.test(url)) continue;
+      seen.add(url);
+      let name = 'Enterprise';
+      try { name = new URL(url).hostname.replace('www.', ''); } catch {}
+      results.push({ companyName: name, website: url, title: name, snippet: name });
+    }
+
+    console.log(`[Brave] Found ${results.length} results`);
+    return results;
+  } catch (e: any) {
+    console.error('[Brave] Failed:', e.message);
     return [];
   }
 }
@@ -245,6 +309,18 @@ export async function executeSearchTask(taskId: string) {
       providerPromises.push({
         name: 'Bing Search',
         promise: searchBing(shortQuery, requestedCount).catch(() => []),
+      });
+    }
+
+    // Brave (full + short query)
+    providerPromises.push({
+      name: 'Brave Search',
+      promise: searchBrave(fullQuery, requestedCount).catch(() => []),
+    });
+    if (shortQuery !== fullQuery) {
+      providerPromises.push({
+        name: 'Brave Search',
+        promise: searchBrave(shortQuery, requestedCount).catch(() => []),
       });
     }
 
