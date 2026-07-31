@@ -301,61 +301,12 @@ export default function SearchCriteriaBuilder({
           </div>
         )}
 
-        {/* AI Translation Helper */}
-        <div className={styles.section}>
-          <h3 className={styles.sectionTitle} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Languages size={18} style={{ color: 'var(--color-primary)' }} />
-            AI 翻譯輔助
-          </h3>
-          <div className={styles.translateBlock}>
-            <div className={styles.translateRow}>
-              <textarea
-                className={styles.textarea}
-                rows={2}
-                placeholder="輸入中文搜尋描述，例如：尋找日本食品包裝機械製造商..."
-                value={translateInput}
-                onChange={e => setTranslateInput(e.target.value)}
-              />
-              <div className={styles.translateControls}>
-                <select
-                  className={styles.langSelect}
-                  value={translateLang}
-                  onChange={e => setTranslateLang(e.target.value)}
-                >
-                  {TRANSLATE_LANGS.map(l => (
-                    <option key={l.code} value={l.code}>{l.flag} {l.name}</option>
-                  ))}
-                </select>
-                <button
-                  className={styles.translateBtn}
-                  onClick={handleTranslate}
-                  disabled={isTranslating || !translateInput.trim()}
-                >
-                  {isTranslating ? <Loader2 size={16} className={styles.spinning} /> : <Languages size={16} />}
-                  {isTranslating ? '翻譯中...' : 'AI 翻譯'}
-                </button>
-              </div>
-            </div>
-            {translateError && (
-              <div className={styles.translateError}>❌ {translateError}</div>
-            )}
-            {translateResult && (
-              <div className={styles.translateResult}>
-                <div className={styles.translateResultText}>{translateResult}</div>
-                <button className={styles.importBtn} onClick={handleImportTranslation}>
-                  <ArrowDown size={14} />
-                  導入到描述欄位
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
+        {/* Natural Language Description + AI Translation */}
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>自然語言描述</h3>
           <textarea
             className={styles.textarea}
-            rows={3}
+            rows={2}
             placeholder="描述您想尋找的目標企業，例如：位於日本的食品包裝機械製造商，具備出口經驗..."
             value={description}
             onChange={e => {
@@ -363,6 +314,49 @@ export default function SearchCriteriaBuilder({
               setShowEstimates(true);
             }}
           />
+
+          {/* AI Translation inline helper */}
+          <div className={styles.translateBlock}>
+            <div className={styles.translateRow}>
+              <input
+                type="text"
+                className={styles.translateInput}
+                placeholder="輸入中文，AI 翻譯成目標語言後導入上方欄位"
+                value={translateInput}
+                onChange={e => setTranslateInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleTranslate(); }}}
+              />
+              <select
+                className={styles.langSelect}
+                value={translateLang}
+                onChange={e => setTranslateLang(e.target.value)}
+              >
+                {TRANSLATE_LANGS.map(l => (
+                  <option key={l.code} value={l.code}>{l.flag} {l.name}</option>
+                ))}
+              </select>
+              <button
+                className={styles.translateBtn}
+                onClick={handleTranslate}
+                disabled={isTranslating || !translateInput.trim()}
+              >
+                {isTranslating ? <Loader2 size={14} className={styles.spinning} /> : <Languages size={14} />}
+                {isTranslating ? '翻譯中' : 'AI 翻譯'}
+              </button>
+            </div>
+            {translateError && (
+              <div className={styles.translateError}>❌ {translateError}</div>
+            )}
+            {translateResult && (
+              <div className={styles.translateResult}>
+                <span className={styles.translateResultText}>{translateResult}</span>
+                <button className={styles.importBtn} onClick={handleImportTranslation}>
+                  <ArrowDown size={12} />
+                  導入
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className={styles.section}>

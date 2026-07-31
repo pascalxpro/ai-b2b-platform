@@ -19,23 +19,25 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl, 16px);
-  padding: 24px;
+  padding: 24px 28px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
-  max-height: 90vh;
+  max-height: 85vh;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .title {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   font-weight: 600;
   color: var(--color-text);
   margin: 0;
@@ -57,17 +59,19 @@
 }
 
 .section {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .sectionTitle {
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: var(--color-text);
-  margin-bottom: 12px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .textarea {
@@ -75,9 +79,10 @@
   background: var(--color-surface-alt);
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md, 8px);
-  padding: 12px;
+  padding: 10px 12px;
   color: var(--color-text);
   font-family: inherit;
+  font-size: 0.9rem;
   resize: vertical;
   transition: all 0.2s ease;
 }
@@ -286,17 +291,38 @@
 .translateBlock {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  background: rgba(99, 102, 241, 0.04);
-  border: 1px dashed rgba(99, 102, 241, 0.25);
-  border-radius: 10px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .translateRow {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  gap: 6px;
+  align-items: center;
+}
+
+.translateInput {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+  min-width: 0;
+}
+
+.translateInput:focus {
+  border-color: var(--color-primary);
+}
+
+.translateInput::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  font-size: 0.82rem;
 }
 
 .translateControls {
@@ -306,15 +332,16 @@
 }
 
 .langSelect {
-  flex: 1;
-  padding: 8px 12px;
-  border-radius: 8px;
+  width: 100px;
+  padding: 7px 8px;
+  border-radius: 6px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-text);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   cursor: pointer;
   outline: none;
+  flex-shrink: 0;
 }
 
 .langSelect:focus {
@@ -324,17 +351,18 @@
 .translateBtn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
-  border-radius: 8px;
+  gap: 4px;
+  padding: 7px 14px;
+  border-radius: 6px;
   border: none;
   background: linear-gradient(135deg, #6366f1, #8b5cf6);
   color: white;
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .translateBtn:hover:not(:disabled) {
@@ -354,34 +382,39 @@
 }
 
 .translateResult {
-  padding: 12px;
-  background: var(--color-surface);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(16, 185, 129, 0.05);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 6px;
   animation: slideDown 0.3s ease-out;
 }
 
 .translateResultText {
-  font-size: 0.92rem;
+  flex: 1;
+  font-size: 0.88rem;
   color: var(--color-text);
-  line-height: 1.5;
-  margin-bottom: 10px;
+  line-height: 1.4;
   word-break: break-word;
 }
 
 .importBtn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  border-radius: 6px;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 5px;
   border: 1px solid #10b981;
   background: rgba(16, 185, 129, 0.08);
   color: #10b981;
   font-weight: 600;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .importBtn:hover {
