@@ -286,68 +286,80 @@ export async function executeSearchTask(taskId: string) {
     // Build query from criteria
     const crit = (task.criteriaJson as any) || {};
     const countries: string[] = Array.isArray(crit.countries) ? crit.countries : [];
-    const countriesStr = countries.join(' ');
     const industriesStr = Array.isArray(crit.industries) ? crit.industries.join(' ') : '';
     const keywordsStr = Array.isArray(crit.keywords) ? crit.keywords.join(' ') : '';
     const companyTypesStr = Array.isArray(crit.companyTypes) ? crit.companyTypes.join(' ') : '';
 
-    // Country to TLD / search language mapping for geo-targeted search
-    const COUNTRY_TLD: Record<string, { tlds: string[]; lang: string; searchLang: string }> = {
-      '日本': { tlds: ['.jp'], lang: 'ja', searchLang: 'lang_ja' },
-      '台灣': { tlds: ['.tw'], lang: 'zh-TW', searchLang: 'lang_zh-TW' },
-      '美國': { tlds: ['.com', '.us'], lang: 'en', searchLang: 'lang_en' },
-      '越南': { tlds: ['.vn'], lang: 'vi', searchLang: 'lang_vi' },
-      '泰國': { tlds: ['.th'], lang: 'th', searchLang: 'lang_th' },
-      '德國': { tlds: ['.de'], lang: 'de', searchLang: 'lang_de' },
-      '韓國': { tlds: ['.kr'], lang: 'ko', searchLang: 'lang_ko' },
-      '中國': { tlds: ['.cn'], lang: 'zh-CN', searchLang: 'lang_zh-CN' },
-      '印尼': { tlds: ['.id'], lang: 'id', searchLang: 'lang_id' },
-      '馬來西亞': { tlds: ['.my'], lang: 'ms', searchLang: 'lang_ms' },
-      '印度': { tlds: ['.in'], lang: 'en', searchLang: 'lang_en' },
-      '英國': { tlds: ['.co.uk', '.uk'], lang: 'en', searchLang: 'lang_en' },
-      '法國': { tlds: ['.fr'], lang: 'fr', searchLang: 'lang_fr' },
-      '義大利': { tlds: ['.it'], lang: 'it', searchLang: 'lang_it' },
-      '西班牙': { tlds: ['.es'], lang: 'es', searchLang: 'lang_es' },
-      '澳洲': { tlds: ['.com.au', '.au'], lang: 'en', searchLang: 'lang_en' },
-      '菲律賓': { tlds: ['.ph'], lang: 'en', searchLang: 'lang_en' },
-      '新加坡': { tlds: ['.sg'], lang: 'en', searchLang: 'lang_en' },
+    // Country to TLD / English name mapping for geo-targeted search
+    const COUNTRY_INFO: Record<string, { tlds: string[]; en: string; lang: string }> = {
+      '日本': { tlds: ['.jp', '.co.jp'], en: 'Japan', lang: 'ja' },
+      '台灣': { tlds: ['.tw', '.com.tw'], en: 'Taiwan', lang: 'zh-TW' },
+      '美國': { tlds: ['.us'], en: 'USA', lang: 'en' },
+      '越南': { tlds: ['.vn'], en: 'Vietnam', lang: 'vi' },
+      '泰國': { tlds: ['.th', '.co.th'], en: 'Thailand', lang: 'th' },
+      '德國': { tlds: ['.de'], en: 'Germany', lang: 'de' },
+      '韓國': { tlds: ['.kr', '.co.kr'], en: 'Korea', lang: 'ko' },
+      '中國': { tlds: ['.cn', '.com.cn'], en: 'China', lang: 'zh-CN' },
+      '印尼': { tlds: ['.id', '.co.id'], en: 'Indonesia', lang: 'id' },
+      '馬來西亞': { tlds: ['.my', '.com.my'], en: 'Malaysia', lang: 'ms' },
+      '印度': { tlds: ['.in', '.co.in'], en: 'India', lang: 'en' },
+      '英國': { tlds: ['.uk', '.co.uk'], en: 'UK', lang: 'en' },
+      '法國': { tlds: ['.fr'], en: 'France', lang: 'fr' },
+      '義大利': { tlds: ['.it'], en: 'Italy', lang: 'it' },
+      '西班牙': { tlds: ['.es'], en: 'Spain', lang: 'es' },
+      '澳洲': { tlds: ['.au', '.com.au'], en: 'Australia', lang: 'en' },
+      '菲律賓': { tlds: ['.ph'], en: 'Philippines', lang: 'en' },
+      '新加坡': { tlds: ['.sg', '.com.sg'], en: 'Singapore', lang: 'en' },
     };
 
-    // Build site: restriction for scraper-based engines
+    // Collect TLDs for post-filtering and site: restriction
     const targetTlds: string[] = [];
+    const countryEnNames: string[] = [];
     for (const c of countries) {
-      const info = COUNTRY_TLD[c];
-      if (info) targetTlds.push(...info.tlds);
+      const info = COUNTRY_INFO[c];
+      if (info) {
+        targetTlds.push(...info.tlds);
+        countryEnNames.push(info.en);
+      }
     }
-    const siteRestriction = targetTlds.length > 0
-      ? targetTlds.map(tld => `site:*${tld}`).join(' OR ')
-      : '';
 
-    const queryParts = [
-      task.queryText || crit.queryText || '',
-      countriesStr, industriesStr, keywordsStr, companyTypesStr,
-    ].filter(Boolean);
+    // Build search queries — use English country name + industry terms
+    // This produces much better geo-targeted results than Chinese-only queries
+    const baseQuery = task.queryText || crit.queryText || '';
+    const enCountryStr = countryEnNames.join(' ');
 
+    // Primary query: use English country name for better geo-targeting
+    const queryParts = [baseQuery, enCountryStr, industriesStr, keywordsStr, companyTypesStr].filter(Boolean);
     const fullQuery = queryParts.join(' ').trim();
-    // Add site restriction for scraper engines (Yahoo, DDG, Bing)
+
+    // For scrapers: add site: TLD restriction (pick the main TLD per country)
+    const mainTlds = countries.map(c => COUNTRY_INFO[c]?.tlds[0]).filter(Boolean);
+    const siteRestriction = mainTlds.length === 1
+      ? `site:${mainTlds[0]}`
+      : mainTlds.length > 1
+        ? mainTlds.map(tld => `site:${tld}`).join(' OR ')
+        : '';
+
+    // Geo query for scrapers — base query + site restriction
     const geoQuery = siteRestriction
-      ? `${fullQuery} (${siteRestriction})`
+      ? `${baseQuery} ${industriesStr} ${keywordsStr} ${companyTypesStr} ${siteRestriction}`.replace(/\s+/g, ' ').trim()
       : fullQuery;
+
     const requestedCount = crit.targetCount || task.targetCount || 10;
 
-    // Shorter focused query for additional coverage
-    const shortQuery = [
-      countriesStr, keywordsStr || industriesStr,
+    // Short query for additional coverage
+    const shortQuery = [enCountryStr, keywordsStr || industriesStr,
       companyTypesStr ? companyTypesStr.split(' ')[0] : '',
     ].filter(Boolean).join(' ').trim() || fullQuery;
     const geoShortQuery = siteRestriction
-      ? `${shortQuery} (${siteRestriction})`
+      ? `${shortQuery} ${siteRestriction}`.trim()
       : shortQuery;
 
     console.log(`[SearchService] Task ${taskId} executing.`);
     console.log(`[SearchService] Full query: "${fullQuery}"`);
-    console.log(`[SearchService] Geo query: "${geoQuery}"`);
+    console.log(`[SearchService] Geo query (scrapers): "${geoQuery}"`);
     console.log(`[SearchService] Short query: "${shortQuery}"`);
+    console.log(`[SearchService] Target TLDs: ${targetTlds.join(', ') || 'none'}`);
 
     const settings = await loadSettingsFromDb();
     const enabledEngines = (settings.searchEngines || []).filter(e => e.enabled);
@@ -487,6 +499,14 @@ export async function executeSearchTask(taskId: string) {
           // Deduplicate by hostname
           let hostname = '';
           try { hostname = new URL(cleanedWebsite).hostname.replace('www.', ''); } catch { continue; }
+
+          // Post-filter: if target countries specified, only keep matching TLDs
+          if (targetTlds.length > 0) {
+            const matchesTld = targetTlds.some(tld => hostname.endsWith(tld.replace(/^\./, '')));
+            // Also allow .com domains (many companies use .com regardless of country)
+            const isGenericTld = hostname.endsWith('.com') || hostname.endsWith('.net') || hostname.endsWith('.org');
+            if (!matchesTld && !isGenericTld) continue;
+          }
           
           // Store the cleaned version
           const cleanedItem = { ...item, website: cleanedWebsite };
