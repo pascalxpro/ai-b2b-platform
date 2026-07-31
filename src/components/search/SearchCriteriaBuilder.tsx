@@ -452,24 +452,14 @@ export default function SearchCriteriaBuilder({
         {/* Natural Language Description + AI Translation */}
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>自然語言描述</h3>
-          <textarea
-            className={styles.textarea}
-            rows={2}
-            placeholder="描述您想尋找的目標企業，例如：位於日本的食品包裝機械製造商，具備出口經驗..."
-            value={description}
-            onChange={e => {
-              setDescription(e.target.value);
-              setShowEstimates(true);
-            }}
-          />
 
-          {/* AI Translation inline helper */}
+          {/* AI Translation inline helper — FIRST: input Chinese here */}
           <div className={styles.translateBlock}>
             <div className={styles.translateRow}>
               <input
                 type="text"
                 className={styles.translateInput}
-                placeholder="輸入中文，AI 翻譯成目標語言後導入上方欄位"
+                placeholder="輸入中文，AI 翻譯成目標語言後導入下方欄位"
                 value={translateInput}
                 onChange={e => setTranslateInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleTranslate(); }}}
@@ -500,11 +490,23 @@ export default function SearchCriteriaBuilder({
                 <span className={styles.translateResultText}>{translateResult}</span>
                 <button className={styles.importBtn} onClick={handleImportTranslation}>
                   <ArrowDown size={12} />
-                  導入
+                  導入 ↓
                 </button>
               </div>
             )}
           </div>
+
+          {/* Description textarea — SECOND: translated result imports here */}
+          <textarea
+            className={styles.textarea}
+            rows={2}
+            placeholder="描述您想尋找的目標企業，例如：位於日本的食品包裝機械製造商，具備出口經驗..."
+            value={description}
+            onChange={e => {
+              setDescription(e.target.value);
+              setShowEstimates(true);
+            }}
+          />
         </div>
 
         <div className={styles.section}>
