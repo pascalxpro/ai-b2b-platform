@@ -161,7 +161,7 @@ export default function SearchCriteriaBuilder({
   };
 
   const COMPANY_TYPES = ['製造商', '代理商', '經銷商', '進口商', '批發商'];
-  const COUNTRY_SUGGESTIONS = ['台灣', '日本', '美國', '越南', '泰國', '德國'];
+  const COUNTRY_SUGGESTIONS = ['台灣', '日本', '美國', '韓國', '越南', '泰國', '德國'];
   const INDUSTRY_SUGGESTIONS = ['半導體', '電子零組件', '機械設備', '食品加工', '軟體服務'];
 
   // Country-specific industry suggestions in local language
@@ -467,25 +467,43 @@ export default function SearchCriteriaBuilder({
                 placeholder="輸入產業並按 Enter"
                 suggestions={INDUSTRY_SUGGESTIONS}
               />
-              {suggestedIndustries.length > 0 && (
-                <div className={styles.industrySuggestions}>
-                  <span className={styles.suggestLabel}>🏭 {countries[0]}熱門產業：</span>
-                  <div className={styles.suggestChips}>
-                    {suggestedIndustries.map(ind => (
-                      <button
-                        key={ind.local}
-                        className={styles.suggestChip}
-                        onClick={() => { setIndustries([...industries, ind.local]); setShowEstimates(true); }}
-                        title={ind.label}
-                      >
-                        {ind.local}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
+
+          {/* Country quick select chips */}
+          <div className={styles.quickChipsRow}>
+            <span className={styles.suggestLabel}>🌍 快速選擇國家：</span>
+            <div className={styles.suggestChips}>
+              {COUNTRY_SUGGESTIONS.filter(c => !countries.includes(c)).map(c => (
+                <button
+                  key={c}
+                  className={styles.suggestChip}
+                  onClick={() => { setCountries([...countries, c]); setShowEstimates(true); }}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Country-based industry suggestions - full width */}
+          {suggestedIndustries.length > 0 && (
+            <div className={styles.quickChipsRow}>
+              <span className={styles.suggestLabel}>🏭 {countries[0]}熱門產業（點擊加入）：</span>
+              <div className={styles.suggestChips}>
+                {suggestedIndustries.map(ind => (
+                  <button
+                    key={ind.local}
+                    className={`${styles.suggestChip} ${styles.suggestChipIndustry}`}
+                    onClick={() => { setIndustries([...industries, ind.local]); setShowEstimates(true); }}
+                    title={`${ind.label}（${ind.local}）`}
+                  >
+                    {ind.local}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className={styles.filterGroup} style={{ marginBottom: '16px' }}>
             <span className={styles.filterLabel}>公司類型</span>
