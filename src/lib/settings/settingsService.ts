@@ -70,7 +70,7 @@ function getDefaultSettings(): SystemSettings {
     searchEngines: getDefaultEngines(),
     aiProvider: 'gemini',
     aiApiKey: process.env.GOOGLE_AI_API_KEY || '',
-    aiModel: 'gemini-2.0-flash-lite',
+    aiModel: 'gemini-3.5-flash-lite',
     aiBaseUrl: '',
   };
 }
