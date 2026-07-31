@@ -90,9 +90,29 @@ export function getSystemSettings(): SystemSettings {
   return getDefaultSettings();
 }
 
+// ─── Ensure table exists (auto-create at runtime) ───
+let tableEnsured = false;
+async function ensureTable() {
+  if (tableEnsured) return;
+  try {
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "system_settings" (
+        "key" TEXT NOT NULL PRIMARY KEY,
+        "value" TEXT NOT NULL,
+        "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    tableEnsured = true;
+  } catch (e) {
+    console.warn('[Settings] Could not ensure table:', e);
+  }
+}
+
 // ─── Async loader: reads from DB ───
 export async function loadSettingsFromDb(): Promise<SystemSettings> {
   if (inMemorySettings) return inMemorySettings;
+
+  await ensureTable();
 
   try {
     const row = await prisma.systemSetting.findUnique({
