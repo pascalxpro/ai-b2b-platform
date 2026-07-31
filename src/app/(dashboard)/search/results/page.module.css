@@ -48,6 +48,7 @@
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--color-primary);
+  white-space: nowrap;
 }
 
 .taskProgress {
