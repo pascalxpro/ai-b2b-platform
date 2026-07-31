@@ -212,7 +212,7 @@ export default function SearchCriteriaBuilder({
   };
 
   return (
-    <div className={styles.modalOverlay} onClick={onClose}>
+    <div className={styles.modalOverlay}>
       <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
         <div className={styles.header}>
           <h2 className={styles.title}>建立搜尋任務</h2>
