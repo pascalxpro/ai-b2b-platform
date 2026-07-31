@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Eye } from 'lucide-react';
+import { Eye, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import ResultsToolbar from '@/components/search/ResultsToolbar';
 import BatchActionBar from '@/components/search/BatchActionBar';
 import ResultDetailDrawer from '@/components/search/ResultDetailDrawer';
@@ -26,6 +26,8 @@ function SearchResultsContent() {
   const [sortField, setSortField] = useState<string>('qualityScore');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   useEffect(() => {
     // Fetch task info
@@ -129,6 +131,16 @@ function SearchResultsContent() {
 
     return filtered;
   }, [results, activeQualityFilter, activeCountry, searchTerm, sortField, sortOrder]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => { setCurrentPage(1); }, [activeQualityFilter, activeCountry, searchTerm, sortField, sortOrder]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredResults.length / pageSize));
+  const paginatedResults = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredResults.slice(start, start + pageSize);
+  }, [filteredResults, currentPage, pageSize]);
 
   const toggleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -287,7 +299,7 @@ function SearchResultsContent() {
               </tr>
             </thead>
             <tbody>
-              {filteredResults.map(row => (
+              {paginatedResults.map(row => (
                 <tr
                   key={row.id}
                   className={`${styles.tr} ${selectedIds.has(row.id) ? styles.trSelected : ''}`}
@@ -389,6 +401,39 @@ function SearchResultsContent() {
           </div>
         ))}
       </div>
+      )}
+
+      {/* Pagination */}
+      {filteredResults.length > 0 && (
+        <div className={styles.pagination}>
+          <div className={styles.paginationInfo}>
+            顯示 {Math.min((currentPage - 1) * pageSize + 1, filteredResults.length)}-{Math.min(currentPage * pageSize, filteredResults.length)} / 共 {filteredResults.length} 筆
+          </div>
+          <div className={styles.paginationControls}>
+            <select
+              className={styles.pageSizeSelect}
+              value={pageSize}
+              onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+            >
+              <option value={20}>20 筆/頁</option>
+              <option value={50}>50 筆/頁</option>
+              <option value={100}>100 筆/頁</option>
+            </select>
+            <button className={styles.pageBtn} disabled={currentPage <= 1} onClick={() => setCurrentPage(1)}>
+              <ChevronsLeft size={16} />
+            </button>
+            <button className={styles.pageBtn} disabled={currentPage <= 1} onClick={() => setCurrentPage(p => p - 1)}>
+              <ChevronLeft size={16} />
+            </button>
+            <span className={styles.pageIndicator}>{currentPage} / {totalPages}</span>
+            <button className={styles.pageBtn} disabled={currentPage >= totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+              <ChevronRight size={16} />
+            </button>
+            <button className={styles.pageBtn} disabled={currentPage >= totalPages} onClick={() => setCurrentPage(totalPages)}>
+              <ChevronsRight size={16} />
+            </button>
+          </div>
+        </div>
       )}
 
       <BatchActionBar
