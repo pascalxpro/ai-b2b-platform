@@ -161,12 +161,21 @@ export default function SearchCriteriaBuilder({
   };
 
   const handleSave = async () => {
+    // Build descriptive name from filters
+    const parts: string[] = [];
+    if (description) parts.push(description);
+    if (countries.length > 0) parts.push(`🌍${countries.join('/')}`);
+    if (industries.length > 0) parts.push(`🏭${industries.join('/')}`);
+    if (keywords.length > 0) parts.push(`🔑${keywords.join('/')}`);
+    if (companyTypes.length > 0) parts.push(`🏢${companyTypes.join('/')}`);
+    const saveName = parts.join(' · ') || '未命名儲存條件';
+
     try {
       const response = await fetch('/api/search/saved', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: description || '未命名儲存條件',
+          name: saveName,
           criteria: {
             queryText: description,
             countries,
@@ -179,7 +188,10 @@ export default function SearchCriteriaBuilder({
       });
 
       if (response.ok) {
-        alert('條件已儲存！');
+        const saved = await response.json();
+        // Add to local list immediately
+        setSavedSearches(prev => [saved, ...prev]);
+        alert('✅ 條件已儲存！');
       } else {
         alert('儲存失敗，請重試。');
       }
@@ -219,11 +231,21 @@ export default function SearchCriteriaBuilder({
               onChange={e => handleSelectSaved(e.target.value)}
             >
               <option value="">-- 選擇已儲存的搜尋條件 --</option>
-              {savedSearches.map(item => (
-                <option key={item.id} value={item.id}>
-                  {item.name || item.criteriaJson?.queryText || '未命名條件'} ({new Date(item.createdAt).toLocaleDateString()})
-                </option>
-              ))}
+              {savedSearches.map(item => {
+                const crit = item.criteriaJson || {};
+                const tags: string[] = [];
+                if (crit.countries?.length) tags.push(`🌍${crit.countries.join('/')}`);
+                if (crit.industries?.length) tags.push(`🏭${crit.industries.join('/')}`);
+                if (crit.companyTypes?.length) tags.push(`🏢${crit.companyTypes.join('/')}`);
+                const label = crit.queryText || item.name || '未命名條件';
+                const tagStr = tags.length > 0 ? ` [${tags.join(' ')}]` : '';
+                const dateStr = new Date(item.createdAt).toLocaleDateString();
+                return (
+                  <option key={item.id} value={item.id}>
+                    {label}{tagStr} ({dateStr})
+                  </option>
+                );
+              })}
             </select>
           </div>
         )}
