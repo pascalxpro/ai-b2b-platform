@@ -95,6 +95,7 @@
 
 .selectField {
   width: 100%;
+  max-width: 100%;
   height: 38px;
   padding: 0 12px;
   background: var(--color-surface-alt);
@@ -107,6 +108,9 @@
   outline: none;
   transition: border-color 0.2s;
   box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .selectField:focus {
