@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, KeyboardEvent } from 'react';
-import { X, Check, Languages, ArrowDown, Loader2 } from 'lucide-react';
+import { X, Check, Languages, ArrowDown, Loader2, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import styles from './SearchCriteriaBuilder.module.css';
 
@@ -82,6 +82,14 @@ export default function SearchCriteriaBuilder({
   const [isEstimating, setIsEstimating] = useState(false);
   const [showEstimates, setShowEstimates] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+
+  // AI Optimization preview state
+  type OptimizedData = { description: string; industries: string[]; companyTypes: string[]; keywords: string[]; langCode: string; langName: string };
+  const [showPreview, setShowPreview] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizedData, setOptimizedData] = useState<Record<string, OptimizedData>>({});
+  const [previewTab, setPreviewTab] = useState('');
+  const [optimizeError, setOptimizeError] = useState('');
 
   // AI Translation state
   const [translateInput, setTranslateInput] = useState('');
@@ -268,7 +276,41 @@ export default function SearchCriteriaBuilder({
   };
 
   const handleSubmit = async () => {
+    // If countries selected, optimize first
+    if (countries.length > 0) {
+      setIsOptimizing(true);
+      setOptimizeError('');
+      setShowPreview(true);
+      try {
+        const res = await fetch('/api/ai/optimize-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            criteria: { queryText: description, countries, industries, companyTypes, keywords },
+            targetCountries: countries,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.optimized) {
+          setOptimizedData(data.optimized);
+          setPreviewTab(countries[0]);
+        } else {
+          setOptimizeError(data.error || '優化失敗');
+        }
+      } catch (e: any) {
+        setOptimizeError(e.message);
+      } finally {
+        setIsOptimizing(false);
+      }
+      return;
+    }
+    // No countries — search directly
+    await executeSearch();
+  };
+
+  const executeSearch = async (overrideCriteria?: Record<string, OptimizedData>) => {
     setIsSearching(true);
+    setShowPreview(false);
     try {
       const response = await fetch('/api/search/tasks', {
         method: 'POST',
@@ -281,7 +323,8 @@ export default function SearchCriteriaBuilder({
             industries,
             keywords,
             companyTypes,
-            targetCount
+            targetCount,
+            ...(overrideCriteria ? { optimizedCriteria: overrideCriteria } : {}),
           },
           autoStart: true
         })
@@ -301,6 +344,20 @@ export default function SearchCriteriaBuilder({
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const handleConfirmOptimized = () => {
+    executeSearch(optimizedData);
+  };
+
+  const updateOptimizedField = (country: string, field: keyof OptimizedData, value: string) => {
+    setOptimizedData(prev => ({
+      ...prev,
+      [country]: {
+        ...prev[country],
+        [field]: field === 'description' ? value : value.split(',').map(s => s.trim()).filter(Boolean),
+      },
+    }));
   };
 
   const handleSave = async () => {
@@ -604,11 +661,128 @@ export default function SearchCriteriaBuilder({
           <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={handleSave}>
             儲存條件
           </button>
-          <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleSubmit} disabled={isSearching}>
-            {isSearching ? '⏳ 搜尋引擎抓取中...' : '開始搜尋'}
+          <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={handleSubmit} disabled={isSearching || isOptimizing}>
+            {isSearching ? '⏳ 搜尋引擎抓取中...' : countries.length > 0 ? '✨ AI 優化並搜尋' : '開始搜尋'}
           </button>
         </div>
       </div>
+
+      {/* AI Optimization Preview Panel */}
+      {showPreview && (
+        <div className={styles.previewOverlay} onClick={e => e.stopPropagation()}>
+          <div className={styles.previewPanel}>
+            {isOptimizing ? (
+              <div className={styles.optimizingOverlay}>
+                <div className={styles.optimizingSpinner} />
+                <div className={styles.optimizingText}>🔄 AI 正在優化潝飾搜尋條件...</div>
+                <div className={styles.optimizingSubtext}>將中文條件轉化為目標國家的商業搜尋用語</div>
+              </div>
+            ) : optimizeError ? (
+              <div>
+                <div className={styles.previewHeader}>
+                  <span className={styles.previewTitle}>❌ 優化失敗</span>
+                  <button className={styles.closeButton} onClick={() => setShowPreview(false)}><X size={20} /></button>
+                </div>
+                <p style={{ color: '#ef4444', marginBottom: 16 }}>{optimizeError}</p>
+                <div className={styles.previewActions}>
+                  <button className={styles.previewBackBtn} onClick={() => setShowPreview(false)}>返回修改</button>
+                  <button className={styles.previewConfirmBtn} onClick={() => executeSearch()}>跳過優化，直接搜尋</button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className={styles.previewHeader}>
+                  <span className={styles.previewTitle}>
+                    <Sparkles size={20} style={{ color: 'var(--color-primary)' }} />
+                    搜尋條件優化預覽
+                  </span>
+                  <button className={styles.closeButton} onClick={() => setShowPreview(false)}><X size={20} /></button>
+                </div>
+
+                {/* Country Tabs */}
+                {Object.keys(optimizedData).length > 1 && (
+                  <div className={styles.previewTabs}>
+                    {Object.keys(optimizedData).map(c => (
+                      <button
+                        key={c}
+                        className={`${styles.previewTab} ${previewTab === c ? styles.previewTabActive : ''}`}
+                        onClick={() => setPreviewTab(c)}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Preview Fields */}
+                {optimizedData[previewTab] && (
+                  <div>
+                    <div className={styles.previewField}>
+                      <div className={styles.previewFieldLabel}>搜尋描述</div>
+                      <div className={styles.previewOriginal}>原始：{description}</div>
+                      <input
+                        className={styles.previewInput}
+                        value={optimizedData[previewTab].description}
+                        onChange={e => updateOptimizedField(previewTab, 'description', e.target.value)}
+                      />
+                    </div>
+
+                    {optimizedData[previewTab].industries?.length > 0 && (
+                      <div className={styles.previewField}>
+                        <div className={styles.previewFieldLabel}>產業別</div>
+                        <div className={styles.previewOriginal}>原始：{industries.join(', ')}</div>
+                        <input
+                          className={styles.previewInput}
+                          value={optimizedData[previewTab].industries.join(', ')}
+                          onChange={e => updateOptimizedField(previewTab, 'industries', e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    {optimizedData[previewTab].companyTypes?.length > 0 && (
+                      <div className={styles.previewField}>
+                        <div className={styles.previewFieldLabel}>公司/客戶類型</div>
+                        <div className={styles.previewOriginal}>原始：{companyTypes.join(', ')}</div>
+                        <input
+                          className={styles.previewInput}
+                          value={optimizedData[previewTab].companyTypes.join(', ')}
+                          onChange={e => updateOptimizedField(previewTab, 'companyTypes', e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    {optimizedData[previewTab].keywords?.length > 0 && (
+                      <div className={styles.previewField}>
+                        <div className={styles.previewFieldLabel}>關鍵字</div>
+                        <div className={styles.previewOriginal}>原始：{keywords.join(', ')}</div>
+                        <input
+                          className={styles.previewInput}
+                          value={optimizedData[previewTab].keywords.join(', ')}
+                          onChange={e => updateOptimizedField(previewTab, 'keywords', e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className={styles.previewActions}>
+                  <button className={styles.previewBackBtn} onClick={() => setShowPreview(false)}>
+                    返回修改
+                  </button>
+                  <button
+                    className={styles.previewConfirmBtn}
+                    onClick={handleConfirmOptimized}
+                    disabled={isSearching}
+                  >
+                    <Sparkles size={16} />
+                    {isSearching ? '搜尋中...' : '✅ 確認並開始搜尋'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
