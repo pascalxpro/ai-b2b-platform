@@ -4,21 +4,21 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './page.module.css';
 import { 
   Settings, Plus, Search, Edit2, Ban, GripVertical,
-  CheckCircle2, AlertTriangle
+  AlertTriangle
 } from 'lucide-react';
 
 // Engine registry (must match server-side ENGINE_REGISTRY)
 const ENGINE_REGISTRY = [
-  { id: 'tavily', name: 'Tavily AI Search', type: 'api' as const, freeQuota: '1,000次/月', needsApiKey: true },
-  { id: 'serper', name: 'Serper.dev (Google)', type: 'api' as const, freeQuota: '2,500次/月', needsApiKey: true },
-  { id: 'google_cse', name: 'Google Custom Search', type: 'api' as const, freeQuota: '100次/天', needsApiKey: true, needsExtraConfig: true, extraConfigLabel: 'CX ID', extraConfigPlaceholder: '搜尋引擎 CX ID' },
-  { id: 'bing_api', name: 'Bing Web Search API', type: 'api' as const, freeQuota: '1,000次/月', needsApiKey: true },
-  { id: 'exa', name: 'Exa.ai', type: 'api' as const, freeQuota: '1,000次/月', needsApiKey: true },
-  { id: 'searxng', name: 'SearXNG (自架)', type: 'api' as const, freeQuota: '無限 (自架)', needsApiKey: false, needsExtraConfig: true, extraConfigLabel: 'Instance URL', extraConfigPlaceholder: 'https://your-searxng-instance.com' },
-  { id: 'brave_api', name: 'Brave Search API', type: 'api' as const, freeQuota: '2,000次/月', needsApiKey: true },
-  { id: 'yahoo', name: 'Yahoo Search (免費爬蟲)', type: 'scraper' as const, freeQuota: '無限', needsApiKey: false },
-  { id: 'duckduckgo', name: 'DuckDuckGo (免費爬蟲)', type: 'scraper' as const, freeQuota: '無限', needsApiKey: false, warning: '雲端 IP 可能被封鎖' },
-  { id: 'bing_scraper', name: 'Bing Search (免費爬蟲)', type: 'scraper' as const, freeQuota: '無限', needsApiKey: false, warning: '結果品質可能受限' },
+  { id: 'tavily', name: 'Tavily AI Search', type: 'api' as const, freeQuota: '1,000次/月', quotaDetail: '免費方案每月 1,000 次 API 呼叫', signupUrl: 'https://tavily.com', needsApiKey: true },
+  { id: 'serper', name: 'Serper.dev (Google)', type: 'api' as const, freeQuota: '2,500次/月', quotaDetail: '免費方案每月 2,500 次 Google 搜尋', signupUrl: 'https://serper.dev', needsApiKey: true },
+  { id: 'google_cse', name: 'Google Custom Search', type: 'api' as const, freeQuota: '100次/天', quotaDetail: '免費方案每天 100 次查詢', signupUrl: 'https://programmablesearchengine.google.com', needsApiKey: true, needsExtraConfig: true, extraConfigLabel: 'CX ID', extraConfigPlaceholder: '搜尋引擎 CX ID' },
+  { id: 'bing_api', name: 'Bing Web Search API', type: 'api' as const, freeQuota: '1,000次/月', quotaDetail: '免費方案每月 1,000 次查詢', signupUrl: 'https://www.microsoft.com/en-us/bing/apis/bing-web-search-api', needsApiKey: true },
+  { id: 'exa', name: 'Exa.ai', type: 'api' as const, freeQuota: '1,000次/月', quotaDetail: '免費方案每月 1,000 次 AI 語義搜尋', signupUrl: 'https://exa.ai', needsApiKey: true },
+  { id: 'searxng', name: 'SearXNG (自架)', type: 'api' as const, freeQuota: '無限 (自架)', quotaDetail: '自架伺服器，無次數限制', signupUrl: 'https://docs.searxng.org', needsApiKey: false, needsExtraConfig: true, extraConfigLabel: 'Instance URL', extraConfigPlaceholder: 'https://your-searxng-instance.com' },
+  { id: 'brave_api', name: 'Brave Search API', type: 'api' as const, freeQuota: '2,000次/月', quotaDetail: '免費方案每月 2,000 次查詢', signupUrl: 'https://brave.com/search/api/', needsApiKey: true },
+  { id: 'yahoo', name: 'Yahoo Search (免費爬蟲)', type: 'scraper' as const, freeQuota: '無限', quotaDetail: '免費網頁爬蟲，無次數限制', needsApiKey: false },
+  { id: 'duckduckgo', name: 'DuckDuckGo (免費爬蟲)', type: 'scraper' as const, freeQuota: '無限', quotaDetail: '免費網頁爬蟲，無次數限制', needsApiKey: false, warning: '雲端 IP 可能被封鎖' },
+  { id: 'bing_scraper', name: 'Bing Search (免費爬蟲)', type: 'scraper' as const, freeQuota: '無限', quotaDetail: '免費網頁爬蟲，無次數限制', needsApiKey: false, warning: '結果品質可能受限' },
 ];
 
 interface EngineState {
@@ -352,20 +352,33 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* Meta info */}
-                        <div className={styles.engineMeta}>
-                          {info.warning ? (
+                        {/* Quota & Meta info */}
+                        <div className={styles.engineQuotaRow}>
+                          <span className={`${styles.quotaBadge} ${isScraper ? styles.quotaFree : styles.quotaLimited}`}>
+                            {isScraper ? '🟢' : '📊'} 免費額度：{info.freeQuota}
+                          </span>
+                          {info.warning && (
+                            <span className={styles.engineWarningBadge}>
+                              <AlertTriangle size={12} /> {info.warning}
+                            </span>
+                          )}
+                        </div>
+                        <div className={styles.engineMetaDetail}>
+                          <span>{info.quotaDetail}</span>
+                          {(info as any).signupUrl && (
                             <>
-                              <AlertTriangle size={13} className={styles.engineWarning} />
-                              <span className={styles.engineWarning}>{info.warning}</span>
                               <span>·</span>
+                              <a 
+                                href={(info as any).signupUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className={styles.engineSignupLink}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                🔗 申請 API Key
+                              </a>
                             </>
-                          ) : !isScraper ? (
-                            <>
-                              <CheckCircle2 size={13} style={{ color: '#10b981' }} />
-                            </>
-                          ) : null}
-                          <span>💡 免費 {info.freeQuota}</span>
+                          )}
                         </div>
                       </div>
                     </div>
