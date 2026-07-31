@@ -80,6 +80,7 @@ function SearchResultsContent() {
               linkedin: scoreObj?.linkedin || '',
               notes: scoreObj?.notes || '',
               sources: d.sources || [],
+              provider: scoreObj?.provider || '未知',
               createdAt: d.createdAt
             };
           }));
@@ -279,7 +280,7 @@ function SearchResultsContent() {
                 <th className={styles.th}>國家</th>
                 <th className={styles.th}>產業</th>
                 <th className={styles.th}>類型</th>
-                <th className={styles.th}>來源數</th>
+                <th className={styles.th}>來源引擎</th>
                 <th className={styles.th}>品質分數</th>
                 <th className={styles.th}>狀態</th>
                 <th className={styles.th}>操作</th>
@@ -320,7 +321,9 @@ function SearchResultsContent() {
                   <td className={styles.td}>
                     <span className={`${styles.badge} ${styles.badgeMuted}`}>{row.companyType}</span>
                   </td>
-                  <td className={styles.td}>{row.sourceCount}</td>
+                  <td className={styles.td}>
+                    <span className={`${styles.badge} ${styles.badgeMuted}`} style={{ fontSize: '0.72rem' }}>{row.provider}</span>
+                  </td>
                   <td className={styles.td}>
                     <div className={styles.qualityBar}>
                       <div
