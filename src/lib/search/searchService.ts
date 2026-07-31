@@ -602,6 +602,30 @@ export async function executeSearchTask(taskId: string) {
       });
 
       if (!existing) {
+        // Calculate quality score based on data completeness and relevance
+        let score = 40; // base score for having a valid website
+        const hostname = (() => { try { return new URL(item.website).hostname.replace('www.', ''); } catch { return ''; } })();
+
+        // Company name quality (not just hostname)
+        if (item.companyName && item.companyName !== hostname && item.companyName.length > 2) {
+          score += 15;
+        }
+        // Has meaningful title
+        if (item.title && item.title.length > 5) score += 8;
+        // Has snippet/description
+        if (item.snippet && item.snippet.length > 20) score += 10;
+        // TLD matches target country
+        if (targetTlds.length > 0 && targetTlds.some(tld => hostname.endsWith(tld.replace(/^\./, '')))) {
+          score += 12;
+        }
+        // Query terms appear in title/snippet (relevance)
+        const queryTerms = baseQuery.split(/\s+/).filter((t: string) => t.length > 1);
+        const titleSnippet = `${item.title || ''} ${item.snippet || ''}`.toLowerCase();
+        const matchCount = queryTerms.filter((t: string) => titleSnippet.includes(t.toLowerCase())).length;
+        if (matchCount > 0) score += Math.min(15, matchCount * 5);
+
+        score = Math.min(100, Math.max(20, score));
+
         await prisma.searchResult.create({
           data: {
             searchTaskId: taskId,
@@ -616,6 +640,7 @@ export async function executeSearchTask(taskId: string) {
               title: item.title,
               description: item.snippet,
               provider,
+              totalScore: score,
             },
           },
         });
