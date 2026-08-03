@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
 
     const { queryText = '', industries = [], companyTypes = [], keywords = [] } = criteria;
     const optimized: Record<string, any> = {};
+    // Remembers why the per-country calls failed, so a run where every country
+    // failed can report the real cause rather than silently returning nothing.
+    let lastError = '';
 
     for (const country of targetCountries) {
       const countryInfo = COUNTRY_LANG[country] || { lang: country, langCode: 'unknown' };
@@ -62,7 +65,9 @@ Return ONLY a valid JSON object (no markdown, no code fences):
       let aiResponseText = '';
 
       if (aiProvider === 'gemini') {
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel || 'gemini-1.5-flash'}:generateContent?key=${aiApiKey}`;
+        // Fallback matches the settings default; gemini-1.5-flash is no longer
+        // in the published model list.
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel || 'gemini-3.5-flash-lite'}:generateContent?key=${aiApiKey}`;
         const res = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -78,6 +83,10 @@ Return ONLY a valid JSON object (no markdown, no code fences):
         if (!res.ok) {
           const errText = await res.text();
           console.error(`[AI Optimize Search] Gemini error for ${country}:`, errText);
+          try {
+            lastError = JSON.parse(errText)?.error?.message || errText;
+          } catch { lastError = errText; }
+          lastError = `(${res.status}) ${String(lastError).substring(0, 300)}`;
           continue; // Skip this country on error and proceed to the next
         }
 
@@ -144,6 +153,16 @@ Return ONLY a valid JSON object (no markdown, no code fences):
           console.error(`[AI Optimize Search] JSON parsing error for ${country}:`, err, '\\nResponse:', aiResponseText);
         }
       }
+    }
+
+    // Every country failed — report it instead of returning an empty object,
+    // which the client treated as success and rendered as a blank preview panel
+    // with no indication that anything went wrong.
+    if (Object.keys(optimized).length === 0) {
+      return NextResponse.json(
+        { error: lastError ? `AI 優化失敗：${lastError}` : 'AI 優化失敗：未取得任何結果' },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({ optimized });

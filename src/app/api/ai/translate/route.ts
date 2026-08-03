@@ -39,7 +39,7 @@ ${text}`;
 
     if (aiProvider === 'gemini') {
       // Google Gemini API
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel}:generateContent?key=${aiApiKey}`;
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${aiModel || 'gemini-3.5-flash-lite'}:generateContent?key=${aiApiKey}`;
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -55,7 +55,17 @@ ${text}`;
       if (!res.ok) {
         const errText = await res.text();
         console.error('[AI Translate] Gemini error:', errText);
-        return NextResponse.json({ error: `Gemini API 錯誤: ${res.status}` }, { status: 500 });
+        // Forward Google's own message — it names the actual cause (unsupported
+        // location, bad model, bad key). Returning only the status code left the
+        // UI showing a bare "Gemini API 錯誤: 400" with nothing to act on.
+        let detail = errText;
+        try {
+          detail = JSON.parse(errText)?.error?.message || errText;
+        } catch { /* non-JSON body: fall back to the raw text */ }
+        return NextResponse.json(
+          { error: `Gemini API 錯誤 (${res.status}): ${String(detail).substring(0, 300)}` },
+          { status: 500 }
+        );
       }
 
       const data = await res.json();

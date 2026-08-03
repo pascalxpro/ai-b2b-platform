@@ -15,11 +15,16 @@ const AI_PROVIDERS = [
   { id: 'lmstudio' as const, name: 'LM Studio', desc: '本地 AI，簡易介面', icon: Cpu },
 ];
 
+// Model IDs verified against ai.google.dev/gemini-api/docs/models.
+// Preview models can require a billing-enabled (paid tier) project, so the
+// widely-available GA model is listed first as the safe fallback when
+// diagnosing key/region errors.
 const GEMINI_MODELS = [
-  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite (最經濟)' },
-  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (經濟)' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (相容性最佳，建議排錯時先選)' },
+  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (最經濟)' },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite (經濟)' },
   { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (推薦)' },
-  { id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro (最強)' },
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (最強，preview 需付費方案)' },
 ];
 
 // Engine registry (must match server-side ENGINE_REGISTRY)
@@ -83,7 +88,7 @@ export default function AdminPage() {
   // AI settings state
   const [aiProvider, setAiProvider] = useState<'gemini' | 'ollama' | 'lmstudio'>('gemini');
   const [aiApiKey, setAiApiKey] = useState('');
-  const [aiModel, setAiModel] = useState('gemini-2.0-flash-lite');
+  const [aiModel, setAiModel] = useState('gemini-3.5-flash-lite');
   const [aiBaseUrl, setAiBaseUrl] = useState('');
   const [aiTestResult, setAiTestResult] = useState<{success: boolean; message: string} | null>(null);
   const [aiTesting, setAiTesting] = useState(false);

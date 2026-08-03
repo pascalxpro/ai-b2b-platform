@@ -9,7 +9,9 @@ export async function POST(request: NextRequest) {
       if (!apiKey) {
         return NextResponse.json({ success: false, error: 'API Key 未填寫' });
       }
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-2.0-flash-lite'}:generateContent?key=${apiKey}`;
+      // Fallback is a current GA model — gemini-2.0-flash-lite is no longer in
+      // the published model list and would fail with a confusing 404/400.
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-2.5-flash'}:generateContent?key=${apiKey}`;
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
