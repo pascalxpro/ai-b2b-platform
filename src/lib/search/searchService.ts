@@ -61,21 +61,44 @@ function isBlockedUrl(url: string): boolean {
   return false;
 }
 
+// ─── Locale helpers: build Accept-Language + engine-specific region params ───
+// NOTE: kl/vl/cc/mkt values below are best-effort per public docs/community references
+// and have not been live-verified against every provider — check logs after deploy.
+interface GeoParams { gl: string; hl: string }
+
+function buildAcceptLanguage(geo?: GeoParams): string {
+  if (!geo) return 'en-US,en;q=0.9';
+  const primary = geo.hl;
+  const base = primary.split('-')[0];
+  return base === primary
+    ? `${primary},en;q=0.8`
+    : `${primary},${base};q=0.9,en;q=0.7`;
+}
+
+const DDG_REGION: Record<string, string> = {
+  jp: 'jp-jp', tw: 'tw-tzh', us: 'us-en', vn: 'vn-en', th: 'th-en',
+  de: 'de-de', kr: 'kr-kr', cn: 'cn-zh', id: 'id-en', my: 'my-en',
+  in: 'in-en', uk: 'uk-en', fr: 'fr-fr', it: 'it-it', es: 'es-es',
+  au: 'au-en', ph: 'ph-en', sg: 'sg-en',
+};
+
 // ─── Yahoo Search (multi-page for more results) ───
-async function searchYahoo(query: string, targetCount: number): Promise<SearchProviderResult[]> {
-  console.log(`[Yahoo] Searching: "${query}" (target: ${targetCount})`);
+async function searchYahoo(query: string, targetCount: number, geo?: GeoParams): Promise<SearchProviderResult[]> {
+  console.log(`[Yahoo] Searching: "${query}" (target: ${targetCount}, geo: ${geo?.gl || 'none'})`);
   const results: SearchProviderResult[] = [];
   const seen = new Set<string>();
   const maxPages = Math.min(5, Math.ceil(targetCount / 10));
+  const acceptLanguage = buildAcceptLanguage(geo);
+  const vlParam = geo ? `&vl=lang_${geo.hl.split('-')[0]}` : '';
 
   for (let page = 0; page < maxPages; page++) {
     const startIndex = page * 10 + 1;
     try {
-      const res = await fetch(`https://search.yahoo.com/search?p=${encodeURIComponent(query)}&b=${startIndex}`, {
+      const res = await fetch(`https://search.yahoo.com/search?p=${encodeURIComponent(query)}&b=${startIndex}${vlParam}`, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Language': acceptLanguage,
         },
       });
       if (!res.ok) break;
@@ -118,18 +141,20 @@ async function searchYahoo(query: string, targetCount: number): Promise<SearchPr
 }
 
 // ─── DuckDuckGo POST Search ───
-async function searchDDG(query: string, targetCount: number): Promise<SearchProviderResult[]> {
-  console.log(`[DDG] Searching: "${query}"`);
+async function searchDDG(query: string, targetCount: number, geo?: GeoParams): Promise<SearchProviderResult[]> {
+  console.log(`[DDG] Searching: "${query}" (geo: ${geo?.gl || 'none'})`);
   try {
+    const acceptLanguage = buildAcceptLanguage(geo);
+    const kl = geo ? DDG_REGION[geo.gl] : undefined;
     const res = await fetch('https://html.duckduckgo.com/html/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html',
-        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Language': acceptLanguage,
       },
-      body: `q=${encodeURIComponent(query)}&b=`,
+      body: `q=${encodeURIComponent(query)}&b=${kl ? `&kl=${kl}` : ''}`,
     });
 
     const html = await res.text();
@@ -166,14 +191,17 @@ async function searchDDG(query: string, targetCount: number): Promise<SearchProv
 }
 
 // ─── Bing Scraper Search ───
-async function searchBing(query: string, targetCount: number): Promise<SearchProviderResult[]> {
-  console.log(`[Bing] Searching: "${query}"`);
+async function searchBing(query: string, targetCount: number, geo?: GeoParams): Promise<SearchProviderResult[]> {
+  console.log(`[Bing] Searching: "${query}" (geo: ${geo?.gl || 'none'})`);
   try {
-    const res = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=zh-TW`, {
+    const acceptLanguage = buildAcceptLanguage(geo);
+    const setlang = geo?.hl || 'en';
+    const cc = geo ? `&cc=${geo.gl.toUpperCase()}` : '';
+    const res = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=${setlang}${cc}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Language': acceptLanguage,
       },
     });
     if (!res.ok) return [];
@@ -362,9 +390,12 @@ export async function executeSearchTask(taskId: string) {
     console.log(`[SearchService] Target TLDs: ${targetTlds.join(', ') || 'none'}`);
 
     // Build API engine parameters
-    // include_domains for Tavily/Exa — wildcard TLD domains (e.g. "*.jp" doesn't work, use TLD suffix)
-    const apiIncludeDomains = mainTlds.map(tld => tld.replace(/^\./, ''));  // e.g. [".jp"] -> ["jp"]
-    // Serper gl/hl — Google country/language codes
+    // NOTE: Tavily/Exa "include_domains" was previously fed bare TLD strings (e.g. "jp"),
+    // which those APIs do not treat as a valid domain suffix filter — removed in favor of
+    // the unified post-merge country-confidence filter below, which is verified to work.
+    // gl/hl — Google/Bing country+language codes, applied when exactly one country is targeted
+    // (a single API call can only carry one geo bias; multi-country runs need per-country
+    // calls, which is a larger structural change tracked separately)
     const COUNTRY_GL: Record<string, { gl: string; hl: string }> = {
       '日本': { gl: 'jp', hl: 'ja' },
       '台灣': { gl: 'tw', hl: 'zh-TW' },
@@ -385,7 +416,12 @@ export async function executeSearchTask(taskId: string) {
       '菲律賓': { gl: 'ph', hl: 'en' },
       '新加坡': { gl: 'sg', hl: 'en' },
     };
-    const serperGeo = countries.length === 1 ? COUNTRY_GL[countries[0]] : undefined;
+    const primaryGeo: GeoParams | undefined = countries.length === 1 ? COUNTRY_GL[countries[0]] : undefined;
+    // Bing "mkt" market code (e.g. "ja-JP") — hl is already a full locale for some
+    // languages (zh-TW/zh-CN), so avoid double-appending the country suffix in that case
+    const bingMkt = primaryGeo
+      ? (primaryGeo.hl.includes('-') ? primaryGeo.hl : `${primaryGeo.hl}-${primaryGeo.gl.toUpperCase()}`)
+      : undefined;
 
     const settings = await loadSettingsFromDb();
     const enabledEngines = (settings.searchEngines || []).filter(e => e.enabled);
@@ -416,9 +452,7 @@ export async function executeSearchTask(taskId: string) {
           if (keys.trim()) {
             providerPromises.push({
               name,
-              promise: searchWithTavily(fullQuery, requestedCount, keys, {
-                includeDomains: apiIncludeDomains.length > 0 ? apiIncludeDomains : undefined,
-              }).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+              promise: searchWithTavily(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
             });
           }
           break;
@@ -427,7 +461,7 @@ export async function executeSearchTask(taskId: string) {
           if (keys.trim()) {
             providerPromises.push({
               name,
-              promise: searchWithSerper(fullQuery, requestedCount, keys, serperGeo).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+              promise: searchWithSerper(fullQuery, requestedCount, keys, primaryGeo).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
             });
           }
           break;
@@ -436,7 +470,11 @@ export async function executeSearchTask(taskId: string) {
           if (keys.trim() && extra.trim()) {
             providerPromises.push({
               name,
-              promise: searchWithGoogleCse(fullQuery, requestedCount, keys, extra).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+              promise: searchWithGoogleCse(fullQuery, requestedCount, keys, extra, primaryGeo ? {
+                gl: primaryGeo.gl,
+                cr: `country${primaryGeo.gl.toUpperCase()}`,
+                lr: `lang_${primaryGeo.hl}`,
+              } : undefined).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
             });
           }
           break;
@@ -445,7 +483,10 @@ export async function executeSearchTask(taskId: string) {
           if (keys.trim()) {
             providerPromises.push({
               name,
-              promise: searchWithBingApi(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+              promise: searchWithBingApi(fullQuery, requestedCount, keys, primaryGeo ? {
+                mkt: bingMkt,
+                cc: primaryGeo.gl.toUpperCase(),
+              } : undefined).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
             });
           }
           break;
@@ -454,9 +495,7 @@ export async function executeSearchTask(taskId: string) {
           if (keys.trim()) {
             providerPromises.push({
               name,
-              promise: searchWithExa(fullQuery, requestedCount, keys, {
-                includeDomains: apiIncludeDomains.length > 0 ? apiIncludeDomains : undefined,
-              }).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
+              promise: searchWithExa(fullQuery, requestedCount, keys).then(r => r.results || []).catch(e => { console.warn(`[${name}] Failed:`, e.message); return []; }),
             });
           }
           break;
@@ -481,23 +520,23 @@ export async function executeSearchTask(taskId: string) {
 
         // Free scrapers (no API key needed)
         case 'yahoo':
-          providerPromises.push({ name, promise: searchYahoo(geoQuery, requestedCount).catch(() => []) });
+          providerPromises.push({ name, promise: searchYahoo(geoQuery, requestedCount, primaryGeo).catch(() => []) });
           if (geoShortQuery !== geoQuery) {
-            providerPromises.push({ name, promise: searchYahoo(geoShortQuery, requestedCount).catch(() => []) });
+            providerPromises.push({ name, promise: searchYahoo(geoShortQuery, requestedCount, primaryGeo).catch(() => []) });
           }
           break;
 
         case 'duckduckgo':
-          providerPromises.push({ name, promise: searchDDG(geoQuery, requestedCount).catch(() => []) });
+          providerPromises.push({ name, promise: searchDDG(geoQuery, requestedCount, primaryGeo).catch(() => []) });
           if (geoShortQuery !== geoQuery) {
-            providerPromises.push({ name, promise: searchDDG(geoShortQuery, requestedCount).catch(() => []) });
+            providerPromises.push({ name, promise: searchDDG(geoShortQuery, requestedCount, primaryGeo).catch(() => []) });
           }
           break;
 
         case 'bing_scraper':
-          providerPromises.push({ name, promise: searchBing(geoQuery, requestedCount).catch(() => []) });
+          providerPromises.push({ name, promise: searchBing(geoQuery, requestedCount, primaryGeo).catch(() => []) });
           if (geoShortQuery !== geoQuery) {
-            providerPromises.push({ name, promise: searchBing(geoShortQuery, requestedCount).catch(() => []) });
+            providerPromises.push({ name, promise: searchBing(geoShortQuery, requestedCount, primaryGeo).catch(() => []) });
           }
           break;
       }
@@ -508,46 +547,59 @@ export async function executeSearchTask(taskId: string) {
       providerPromises.map(p => p.promise)
     );
 
-    // Merge and deduplicate results from all providers
-    const mergedMap = new Map<string, { result: SearchProviderResult; provider: string }>();
-    
+    // Merge and deduplicate results from all providers.
+    // countryConfidence reflects how sure we are the result actually belongs to a
+    // targeted country: 'high' = TLD directly matches, 'low' = ambiguous generic TLD
+    // (.com/.net/.org — kept, not dropped, since many legitimate local companies use them,
+    // but must not be silently treated as equal to a confirmed match), 'unscoped' = no
+    // country filter was requested.
+    type CountryConfidence = 'high' | 'low' | 'unscoped';
+    const mergedMap = new Map<string, { result: SearchProviderResult; provider: string; countryConfidence: CountryConfidence }>();
+
     for (let i = 0; i < providerResults.length; i++) {
       const outcome = providerResults[i];
       const providerName = providerPromises[i].name;
-      
+
       if (outcome.status === 'fulfilled' && outcome.value.length > 0) {
         console.log(`[SearchService] ${providerName} returned ${outcome.value.length} results`);
         for (const item of outcome.value) {
           if (!item.website || !item.companyName) continue;
-          
+
           // Clean HTML entities from URL
           const cleanedWebsite = cleanUrl(item.website);
-          
+
           // Re-check blocklist on cleaned URL
           if (isBlockedUrl(cleanedWebsite)) continue;
-          
+
           // Deduplicate by hostname
           let hostname = '';
           try { hostname = new URL(cleanedWebsite).hostname.replace('www.', ''); } catch { continue; }
 
-          // Post-filter: if target countries specified, only keep matching TLDs
+          // Post-filter: if target countries specified, only keep matching or ambiguous TLDs.
+          // A TLD that clearly belongs to a different, non-targeted country is dropped —
+          // only the generic .com/.net/.org case is kept-but-unverified, never silently
+          // promoted to a confirmed match.
+          let countryConfidence: CountryConfidence = 'unscoped';
           if (targetTlds.length > 0) {
             const matchesTld = targetTlds.some(tld => hostname.endsWith(tld.replace(/^\./, '')));
-            // Also allow .com domains (many companies use .com regardless of country)
             const isGenericTld = hostname.endsWith('.com') || hostname.endsWith('.net') || hostname.endsWith('.org');
             if (!matchesTld && !isGenericTld) continue;
+            countryConfidence = matchesTld ? 'high' : 'low';
           }
-          
+
           // Store the cleaned version
           const cleanedItem = { ...item, website: cleanedWebsite };
-          
+
           if (!mergedMap.has(hostname)) {
-            mergedMap.set(hostname, { result: cleanedItem, provider: providerName });
+            mergedMap.set(hostname, { result: cleanedItem, provider: providerName, countryConfidence });
           } else {
-            // If this provider has a better company name (not just hostname), update it
             const existing = mergedMap.get(hostname)!;
-            if (cleanedItem.companyName !== hostname && existing.result.companyName === hostname) {
-              mergedMap.set(hostname, { result: cleanedItem, provider: providerName });
+            // Prefer a higher-confidence match if a later provider confirms one
+            if (countryConfidence === 'high' && existing.countryConfidence !== 'high') {
+              mergedMap.set(hostname, { result: cleanedItem, provider: providerName, countryConfidence });
+            } else if (cleanedItem.companyName !== hostname && existing.result.companyName === hostname) {
+              // If this provider has a better company name (not just hostname), update it
+              mergedMap.set(hostname, { result: cleanedItem, provider: providerName, countryConfidence: existing.countryConfidence });
             }
           }
         }
@@ -573,7 +625,13 @@ export async function executeSearchTask(taskId: string) {
       '.nz': '紐西蘭', '.ca': '加拿大', '.hk': '香港',
     };
 
-    function detectCountry(url: string): string {
+    // Returns the country the TLD actually indicates, or null when the domain (e.g. a
+    // generic .com/.net/.org) gives no reliable signal. IMPORTANT: this must never fall
+    // back to "assume it's whatever country the user searched for" — that fallback was
+    // the direct cause of unrelated-country results being mislabeled as the target
+    // country (e.g. a Taiwanese .com company saved as "日本" just because the user
+    // searched Japan). Callers should treat a null return as "country unverified".
+    function detectCountry(url: string): string | null {
       try {
         const hostname = new URL(url).hostname.toLowerCase();
         // Check longest TLDs first (e.g. .co.uk, .com.au)
@@ -589,14 +647,12 @@ export async function executeSearchTask(taskId: string) {
         for (const [tld, country] of Object.entries(TLD_COUNTRY)) {
           if (hostname.endsWith(tld)) return country;
         }
-        // Default: if user specified countries, use first one; otherwise Unknown
-        if (countries.length > 0) return countries[0];
       } catch {}
-      return countries.length > 0 ? countries[0] : 'Unknown';
+      return null;
     }
 
     let savedCount = 0;
-    for (const { result: item, provider } of allResults) {
+    for (const { result: item, provider, countryConfidence } of allResults) {
       const existing = await prisma.searchResult.findFirst({
         where: { searchTaskId: taskId, website: item.website },
       });
@@ -615,9 +671,7 @@ export async function executeSearchTask(taskId: string) {
         // Has snippet/description
         if (item.snippet && item.snippet.length > 20) score += 10;
         // TLD matches target country
-        if (targetTlds.length > 0 && targetTlds.some(tld => hostname.endsWith(tld.replace(/^\./, '')))) {
-          score += 12;
-        }
+        if (countryConfidence === 'high') score += 12;
         // Query terms appear in title/snippet (relevance)
         const queryTerms = baseQuery.split(/\s+/).filter((t: string) => t.length > 1);
         const titleSnippet = `${item.title || ''} ${item.snippet || ''}`.toLowerCase();
@@ -626,21 +680,27 @@ export async function executeSearchTask(taskId: string) {
 
         score = Math.min(100, Math.max(20, score));
 
+        // Low-confidence country matches (ambiguous .com/.net/.org that didn't hit a
+        // target TLD) are kept but flagged for manual review rather than silently
+        // trusted — see detectCountry() and the post-filter above.
+        const detectedCountry = detectCountry(item.website);
+
         await prisma.searchResult.create({
           data: {
             searchTaskId: taskId,
             workspaceId: task.workspaceId,
             companyName: item.companyName,
             website: item.website,
-            country: detectCountry(item.website),
+            country: detectedCountry,
             sourceCount: 1,
-            qualityStatus: 'NEW',
+            qualityStatus: countryConfidence === 'low' ? 'PENDING_REVIEW' : 'NEW',
             conversionStatus: 'NONE',
             scoreJson: {
               title: item.title,
               description: item.snippet,
               provider,
               totalScore: score,
+              countryConfidence,
             },
           },
         });

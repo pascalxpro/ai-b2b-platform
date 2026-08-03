@@ -4,15 +4,19 @@ export async function searchWithGoogleCse(
   query: string,
   targetCount: number,
   apiKeysString: string,
-  extraConfig?: string
+  extraConfig?: string,
+  geo?: { gl?: string; cr?: string; lr?: string }
 ): Promise<{ results: SearchProviderResult[]; usedKey: string }> {
   const keys = apiKeysString.split(',').map((k) => k.trim()).filter(Boolean);
   const cx = extraConfig || '';
 
   for (const key of keys) {
     try {
-      console.log(`[GoogleCSE] Trying key ${key.substring(0, 4)}...`);
-      const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(key)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=${targetCount}`;
+      console.log(`[GoogleCSE] Trying key ${key.substring(0, 4)}... (geo: ${geo?.gl || 'none'})`);
+      let url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(key)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=${targetCount}`;
+      if (geo?.gl) url += `&gl=${encodeURIComponent(geo.gl)}`;
+      if (geo?.cr) url += `&cr=${encodeURIComponent(geo.cr)}`;
+      if (geo?.lr) url += `&lr=${encodeURIComponent(geo.lr)}`;
       const response = await fetch(url);
 
       if (!response.ok) {
