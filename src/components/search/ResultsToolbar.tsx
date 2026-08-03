@@ -11,6 +11,8 @@ interface ResultsToolbarProps {
   onViewChange?: (view: 'table' | 'card') => void;
   onExport?: () => void;
   viewMode?: 'table' | 'card';
+  /** Countries present in the current result set. */
+  countryOptions?: string[];
 }
 
 export default function ResultsToolbar({
@@ -20,6 +22,7 @@ export default function ResultsToolbar({
   onViewChange,
   onExport,
   viewMode: externalViewMode,
+  countryOptions = [],
 }: ResultsToolbarProps) {
   const [activeQuality, setActiveQuality] = useState('ALL');
   const [internalViewMode, setInternalViewMode] = useState<'table'|'card'>('table');
@@ -70,19 +73,16 @@ export default function ResultsToolbar({
           ))}
         </div>
         
-        <select 
+        {/* Options come from the actual results rather than a fixed list, so
+            countries outside the old hardcoded set are still filterable. */}
+        <select
           className={styles.select}
           onChange={(e) => onFilterChange('country', e.target.value || 'ALL')}
         >
           <option value="">所有國家</option>
-          <option value="台灣">台灣</option>
-          <option value="日本">日本</option>
-          <option value="美國">美國</option>
-          <option value="德國">德國</option>
-          <option value="越南">越南</option>
-          <option value="韓國">韓國</option>
-          <option value="泰國">泰國</option>
-          <option value="新加坡">新加坡</option>
+          {countryOptions.map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
         </select>
       </div>
 

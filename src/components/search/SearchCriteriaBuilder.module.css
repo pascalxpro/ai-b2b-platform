@@ -9,6 +9,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Padding + scrollable overlay so a tall modal on a short viewport can still
+     be scrolled to instead of having its header clipped off the top edge. */
+  padding: 24px 16px;
+  overflow-y: auto;
   z-index: 1000;
   animation: fadeIn 0.2s ease-out;
 }
@@ -23,7 +27,11 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
-  max-height: 85vh;
+  /* Account for the overlay's vertical padding so the modal never exceeds the
+     viewport; `margin: auto` keeps it centred while still allowing overflow
+     scroll once it grows taller than the available space. */
+  max-height: calc(100vh - 48px);
+  margin: auto;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -519,6 +527,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
   z-index: 1100;
   animation: fadeIn 0.2s ease-out;
 }
@@ -532,7 +542,8 @@
   padding: 24px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
   animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  max-height: 85vh;
+  max-height: calc(100vh - 48px);
+  margin: auto;
   overflow-y: auto;
 }
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Globe, Mail, Phone, Link2 as Linkedin, Copy, ExternalLink, MessageSquare, Save, CheckCircle2 } from 'lucide-react';
+import Portal from '@/components/ui/Portal';
 import styles from './ResultDetailDrawer.module.css';
 
 interface ResultData {
@@ -133,7 +134,7 @@ export default function ResultDetailDrawer({
   };
 
   return (
-    <>
+    <Portal>
       <div className={styles.overlay} onClick={onClose} />
       <div className={styles.drawer}>
         <div className={styles.header}>
@@ -259,6 +260,6 @@ export default function ResultDetailDrawer({
           </button>
         </div>
       </div>
-    </>
+    </Portal>
   );
 }

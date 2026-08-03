@@ -3,6 +3,7 @@
 import React, { useState, useEffect, KeyboardEvent } from 'react';
 import { X, Check, Languages, ArrowDown, Loader2, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Portal from '@/components/ui/Portal';
 import styles from './SearchCriteriaBuilder.module.css';
 
 // Simple inline TagInput since we need it self-contained
@@ -412,6 +413,7 @@ export default function SearchCriteriaBuilder({
   };
 
   return (
+    <Portal>
     <div className={styles.modalOverlay}>
       <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
         <div className={styles.header}>
@@ -805,5 +807,6 @@ export default function SearchCriteriaBuilder({
         </div>
       )}
     </div>
+    </Portal>
   );
 }

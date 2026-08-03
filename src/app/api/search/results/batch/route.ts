@@ -1,22 +1,52 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { searchStore } from '@/lib/search/store';
+import type { QualityStatus, ConversionStatus } from '@prisma/client';
+import { prisma } from '@/lib/db/prisma';
+
+const QUALITY_STATUSES = ['NEW', 'VALID', 'PENDING_REVIEW', 'DUPLICATE', 'INVALID'] as const;
+const CONVERSION_STATUSES = ['NONE', 'FAVORITED', 'ASSIGNED', 'CONVERTED_LEAD', 'CONVERTED_OPPORTUNITY'] as const;
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { ids, updates } = body;
-    
-    if (!Array.isArray(ids)) {
-      return NextResponse.json({ error: 'ids must be an array' }, { status: 400 });
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: 'ids must be a non-empty array' }, { status: 400 });
     }
-    
-    const count = searchStore.batchUpdateResults(ids, {
-      ...updates,
-      updatedAt: new Date().toISOString()
+    if (!updates || typeof updates !== 'object') {
+      return NextResponse.json({ error: 'updates object is required' }, { status: 400 });
+    }
+
+    // Only allow the two status columns through — everything else in updates is
+    // ignored rather than blindly forwarded to Prisma.
+    const data: { qualityStatus?: QualityStatus; conversionStatus?: ConversionStatus } = {};
+
+    if (updates.qualityStatus !== undefined) {
+      if (!QUALITY_STATUSES.includes(updates.qualityStatus)) {
+        return NextResponse.json({ error: `Invalid qualityStatus: ${updates.qualityStatus}` }, { status: 400 });
+      }
+      data.qualityStatus = updates.qualityStatus as QualityStatus;
+    }
+    if (updates.conversionStatus !== undefined) {
+      if (!CONVERSION_STATUSES.includes(updates.conversionStatus)) {
+        return NextResponse.json({ error: `Invalid conversionStatus: ${updates.conversionStatus}` }, { status: 400 });
+      }
+      data.conversionStatus = updates.conversionStatus as ConversionStatus;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: 'No supported fields to update' }, { status: 400 });
+    }
+
+    const result = await prisma.searchResult.updateMany({
+      where: { id: { in: ids } },
+      data,
     });
-    
-    return NextResponse.json({ updated: count });
+
+    return NextResponse.json({ updated: result.count });
   } catch (error: any) {
+    console.error('[API] Batch update failed:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -9,6 +9,16 @@ import ResultDetailDrawer from '@/components/search/ResultDetailDrawer';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import styles from './page.module.css';
 
+// Mirrors the countryConfidence values written by executeSearchTask():
+// 'high'     = hostname TLD matches a targeted country
+// 'low'      = generic .com/.net/.org, kept but never country-verified
+// 'unscoped' = the search specified no target country, so nothing to verify
+const CONFIDENCE_META: Record<string, { label: string; color: string; title: string }> = {
+  high: { label: '已驗證', color: 'var(--color-success)', title: '網域國別碼與目標國家相符' },
+  low: { label: '未驗證', color: 'var(--color-warning)', title: '通用網域（.com/.net/.org），無法由網域確認國別，建議人工複核' },
+  unscoped: { label: '—', color: 'var(--color-text-muted)', title: '此次搜尋未指定目標國家' },
+};
+
 function SearchResultsContent() {
   const searchParams = useSearchParams();
   const taskId = searchParams.get('taskId');
@@ -25,6 +35,8 @@ function SearchResultsContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeQualityFilter, setActiveQualityFilter] = useState<string>('ALL');
   const [activeCountry, setActiveCountry] = useState<string>('ALL');
+  const [activeConfidence, setActiveConfidence] = useState<string>('ALL');
+  const [batchBusy, setBatchBusy] = useState(false);
   const [sortField, setSortField] = useState<string>('qualityScore');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
@@ -69,15 +81,20 @@ function SearchResultsContent() {
               id: d.id,
               name: d.companyName || d.name || '未知',
               localName: d.companyName || '',
-              country: d.country || '未知',
+              // country is null when the domain gave no reliable signal — show it
+              // as unverified rather than inventing a country (see detectCountry).
+              country: d.country || '未確認',
+              countryConfidence: scoreObj?.countryConfidence || 'unscoped',
               industry: scoreObj?.industry || '未知產業',
               companyType: scoreObj?.companyType || '未知類型',
               employeeCount: scoreObj?.employeeCount || '',
               revenue: scoreObj?.revenue || '',
-              qualityScore: scoreObj?.totalScore || 75,
+              // Fall back to 0 (not the old static 75) so results genuinely
+              // missing a score are visible instead of masquerading as decent.
+              qualityScore: scoreObj?.totalScore ?? 0,
               qualityStatus: d.qualityStatus || 'NEW',
               conversionStatus: d.conversionStatus || 'NONE',
-              sourceCount: 1,
+              sourceCount: d.sourceCount ?? (Array.isArray(d.sources) ? d.sources.length : 0),
               website: d.website || '',
               email: scoreObj?.email || '',
               phone: scoreObj?.phone || '',
@@ -108,6 +125,12 @@ function SearchResultsContent() {
       filtered = filtered.filter(r => r.country === activeCountry);
     }
 
+    // Country-confidence filter — lets the user isolate results whose country
+    // was never verified by a matching TLD (generic .com/.net/.org domains).
+    if (activeConfidence !== 'ALL') {
+      filtered = filtered.filter(r => r.countryConfidence === activeConfidence);
+    }
+
     // Search term
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
@@ -132,10 +155,24 @@ function SearchResultsContent() {
     });
 
     return filtered;
-  }, [results, activeQualityFilter, activeCountry, searchTerm, sortField, sortOrder]);
+  }, [results, activeQualityFilter, activeCountry, activeConfidence, searchTerm, sortField, sortOrder]);
+
+  // Country options derived from the actual results, so countries the toolbar's
+  // old hardcoded list didn't know about are still filterable.
+  const countryOptions = useMemo(
+    () => Array.from(new Set(results.map(r => r.country).filter(Boolean))).sort(),
+    [results]
+  );
+
+  // Count of results whose country was never TLD-verified — surfaced as a hint
+  // so a run that quietly filled up with unverifiable domains is noticeable.
+  const lowConfidenceCount = useMemo(
+    () => results.filter(r => r.countryConfidence === 'low').length,
+    [results]
+  );
 
   // Reset to page 1 when filters change
-  useEffect(() => { setCurrentPage(1); }, [activeQualityFilter, activeCountry, searchTerm, sortField, sortOrder]);
+  useEffect(() => { setCurrentPage(1); }, [activeQualityFilter, activeCountry, activeConfidence, searchTerm, sortField, sortOrder]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredResults.length / pageSize));
@@ -190,13 +227,33 @@ function SearchResultsContent() {
     }
   };
 
-  const handleBatchStatus = (newStatus: string) => {
-    setResults(prev =>
-      prev.map(r =>
-        selectedIds.has(r.id) ? { ...r, qualityStatus: newStatus } : r
-      )
-    );
-    setSelectedIds(new Set());
+  // Persists the change first, then reflects it locally. The previous version
+  // only mutated React state, so every batch action was silently lost on reload.
+  const applyBatchUpdate = async (updates: { qualityStatus?: string; conversionStatus?: string }) => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    setBatchBusy(true);
+    try {
+      const res = await fetch('/api/search/results/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, updates }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      setResults(prev =>
+        prev.map(r => (selectedIds.has(r.id) ? { ...r, ...updates } : r))
+      );
+      setSelectedIds(new Set());
+    } catch (e: any) {
+      console.error('Batch update failed:', e);
+      alert(`批次更新失敗（變更未儲存）：\n${e.message}`);
+    } finally {
+      setBatchBusy(false);
+    }
   };
 
   const handleFilterChange = (key: string, value: string) => {
@@ -217,10 +274,21 @@ function SearchResultsContent() {
   };
 
   const handleExport = () => {
-    const headers = ['公司名稱', '本地名稱', '國家', '產業', '類型', '品質分數', '狀態', '來源數'];
+    // Company names routinely contain commas and quotes; without escaping, every
+    // column after such a value shifts and the export silently corrupts.
+    const escape = (v: any) => {
+      const s = String(v ?? '');
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+
+    const headers = ['公司名稱', '國家', '國別信心', '產業', '類型', '網站', 'Email', '電話', '品質分數', '狀態', '來源引擎', '來源數'];
     const csvRows = [headers.join(',')];
     filteredResults.forEach(r => {
-      csvRows.push([r.name, r.localName, r.country, r.industry, r.companyType, r.qualityScore, r.qualityStatus, r.sourceCount].join(','));
+      csvRows.push([
+        r.name, r.country, CONFIDENCE_META[r.countryConfidence]?.label || r.countryConfidence,
+        r.industry, r.companyType, r.website, r.email, r.phone,
+        r.qualityScore, getStatusLabel(r.qualityStatus), r.provider, r.sourceCount,
+      ].map(escape).join(','));
     });
     const blob = new Blob([`\uFEFF${csvRows.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -310,7 +378,33 @@ function SearchResultsContent() {
         onViewChange={setViewMode}
         onExport={handleExport}
         viewMode={viewMode}
+        countryOptions={countryOptions}
       />
+
+      {/* Country-verification filter. Only meaningful once a run has produced
+          results whose country could not be confirmed from the domain. */}
+      {lowConfidenceCount > 0 && (
+        <div className={styles.confidenceBar}>
+          <span className={styles.confidenceHint}>
+            ⚠️ 有 <strong>{lowConfidenceCount}</strong> 筆結果使用通用網域（.com/.net/.org），國別無法由網域確認
+          </span>
+          <div className={styles.confidenceChips}>
+            {[
+              { id: 'ALL', label: '全部' },
+              { id: 'high', label: '已驗證國別' },
+              { id: 'low', label: '未驗證國別' },
+            ].map(f => (
+              <button
+                key={f.id}
+                className={`${styles.confidenceChip} ${activeConfidence === f.id ? styles.confidenceChipActive : ''}`}
+                onClick={() => setActiveConfidence(f.id)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {viewMode === 'table' ? (
       <div className={styles.tableContainer}>
@@ -388,7 +482,26 @@ function SearchResultsContent() {
                   <td className={styles.td}>
                     {editingId === row.id ? (
                       <input style={{ width: 60, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.82rem' }} value={editValues.country || ''} onChange={e => setEditValues(v => ({ ...v, country: e.target.value }))} />
-                    ) : row.country}
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>{row.country}</span>
+                        {row.countryConfidence !== 'unscoped' && (
+                          <span
+                            title={CONFIDENCE_META[row.countryConfidence]?.title}
+                            style={{
+                              fontSize: '0.68rem',
+                              padding: '1px 6px',
+                              borderRadius: 10,
+                              whiteSpace: 'nowrap',
+                              color: CONFIDENCE_META[row.countryConfidence]?.color,
+                              border: `1px solid ${CONFIDENCE_META[row.countryConfidence]?.color}`,
+                            }}
+                          >
+                            {CONFIDENCE_META[row.countryConfidence]?.label}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className={styles.td}>
                     {editingId === row.id ? (
@@ -452,7 +565,7 @@ function SearchResultsContent() {
             <p>沒有符合條件的結果</p>
             <button onClick={() => { setActiveQualityFilter('ALL'); setActiveCountry('ALL'); setSearchTerm(''); }}>清除篩選條件</button>
           </div>
-        ) : filteredResults.map(row => (
+        ) : paginatedResults.map(row => (
           <div key={row.id} className={styles.resultCard} onClick={() => setDetailData(row)}>
             <div className={styles.cardTop}>
               <div>
@@ -514,10 +627,11 @@ function SearchResultsContent() {
 
       <BatchActionBar
         selectedCount={selectedIds.size}
-        onMarkValid={() => handleBatchStatus('VALID')}
-        onMarkInvalid={() => handleBatchStatus('INVALID')}
-        onFavorite={() => handleBatchStatus('VALID')}
-        onAssign={() => setSelectedIds(new Set())}
+        busy={batchBusy}
+        onMarkValid={() => applyBatchUpdate({ qualityStatus: 'VALID' })}
+        onMarkInvalid={() => applyBatchUpdate({ qualityStatus: 'INVALID' })}
+        onFavorite={() => applyBatchUpdate({ conversionStatus: 'FAVORITED' })}
+        onClearSelection={() => setSelectedIds(new Set())}
       />
 
       <ResultDetailDrawer
