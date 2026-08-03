@@ -157,6 +157,10 @@ export async function loadSettingsFromDb(): Promise<SystemSettings> {
 }
 
 // ─── Write settings to DB ───
+// Throws if the database write fails. Callers MUST surface that failure to the
+// user: settings (including API keys) live only in the in-memory cache until
+// they are persisted, so a swallowed error means the values silently vanish on
+// the next container restart while the UI claims the save succeeded.
 export async function updateSystemSettings(newSettings: Partial<SystemSettings>): Promise<SystemSettings> {
   const current = await loadSettingsFromDb();
   const updated: SystemSettings = {
@@ -172,17 +176,19 @@ export async function updateSystemSettings(newSettings: Partial<SystemSettings>)
     }
   }
 
-  // Save to database
-  try {
-    await prisma.systemSetting.upsert({
-      where: { key: SETTINGS_DB_KEY },
-      update: { value: JSON.stringify(updated) },
-      create: { key: SETTINGS_DB_KEY, value: JSON.stringify(updated) },
-    });
-    console.log('[Settings] Saved to database');
-  } catch (error) {
-    console.error('[Settings] Failed to write to database:', error);
-  }
+  // Make sure the table exists before writing — loadSettingsFromDb() only calls
+  // ensureTable() on a cache miss, so a cached read would otherwise skip it.
+  await ensureTable();
+
+  // Save to database. Deliberately not caught here: the in-memory cache is only
+  // updated after a confirmed successful write, so a failed save leaves the
+  // previous (persisted) values intact rather than diverging from the database.
+  await prisma.systemSetting.upsert({
+    where: { key: SETTINGS_DB_KEY },
+    update: { value: JSON.stringify(updated) },
+    create: { key: SETTINGS_DB_KEY, value: JSON.stringify(updated) },
+  });
+  console.log('[Settings] Saved to database');
 
   inMemorySettings = updated;
   return updated;

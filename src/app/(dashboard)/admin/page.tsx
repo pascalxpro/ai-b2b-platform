@@ -242,11 +242,12 @@ export default function AdminPage() {
         setSaveSuccessMessage('✅ 設定已成功儲存！');
         setTimeout(() => setSaveSuccessMessage(''), 3000);
       } else {
-        alert('儲存失敗');
+        const data = await res.json().catch(() => ({}));
+        alert(`儲存失敗（設定未寫入資料庫，重啟後會遺失）：\n${data.error || `HTTP ${res.status}`}`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert('儲存失敗');
+      alert(`儲存失敗（設定未寫入資料庫，重啟後會遺失）：\n${e.message}`);
     } finally {
       setSavingSettings(false);
     }
@@ -289,10 +290,12 @@ export default function AdminPage() {
         setSaveSuccessMessage('✅ AI 設定已成功儲存！');
         setTimeout(() => setSaveSuccessMessage(''), 3000);
       } else {
-        alert('儲存失敗');
+        const data = await res.json().catch(() => ({}));
+        alert(`儲存失敗（API Key 未寫入資料庫，重啟後會遺失）：\n${data.error || `HTTP ${res.status}`}`);
       }
-    } catch (e) {
-      alert('儲存失敗');
+    } catch (e: any) {
+      console.error(e);
+      alert(`儲存失敗（API Key 未寫入資料庫，重啟後會遺失）：\n${e.message}`);
     } finally {
       setAiSaving(false);
     }
