@@ -4,9 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "DATABASE_URL=${DATABASE_URL:-postgresql://x:x@localhost:5432/x} prisma generate && next build",
-    "postinstall": "DATABASE_URL=${DATABASE_URL:-postgresql://x:x@localhost:5432/x} prisma generate",
-    "start": "npx prisma db push --skip-generate && next start -H 0.0.0.0",
+    "build": "npx prisma generate --schema=prisma/schema.prisma && next build",
+    "start": "npx prisma db push --skip-generate --schema=prisma/schema.prisma && next start -H 0.0.0.0",
     "lint": "eslint"
   },
   "dependencies": {
