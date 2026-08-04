@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Portal from '@/components/ui/Portal';
 import BrowserKeyModal from '@/components/ai/BrowserKeyModal';
 import { callGemini, DEFAULT_GEMINI_MODEL } from '@/lib/ai/gemini';
-import { getBrowserGeminiKey } from '@/lib/ai/browserKey';
+import { getBrowserGeminiKey, resolveModel } from '@/lib/ai/browserKey';
 import { buildTranslatePrompt, buildOptimizePrompt, parseOptimizeResponse } from '@/lib/ai/prompts';
 import styles from './SearchCriteriaBuilder.module.css';
 
@@ -154,7 +154,9 @@ export default function SearchCriteriaBuilder({
         // Same prompt builder the server route uses, so both modes behave alike.
         const text = await callGemini(
           getBrowserGeminiKey(),
-          aiModel,
+          // The user's own model choice wins over the team default, because in
+          // browser mode the request is billed against their own quota.
+          resolveModel(aiModel),
           buildTranslatePrompt(translateInput, translateLang),
           { temperature: 0.3, maxOutputTokens: 500 }
         );
@@ -330,6 +332,7 @@ export default function SearchCriteriaBuilder({
       try {
         if (browserMode) {
           const key = getBrowserGeminiKey();
+          const model = resolveModel(aiModel);
           const criteria = { queryText: description, industries, companyTypes, keywords };
           const collected: Record<string, OptimizedData> = {};
           let lastError = '';
@@ -339,7 +342,7 @@ export default function SearchCriteriaBuilder({
           // whole multi-country batch in parallel invites a 429.
           for (const country of countries) {
             try {
-              const raw = await callGemini(key, aiModel, buildOptimizePrompt(criteria, country), {
+              const raw = await callGemini(key, model, buildOptimizePrompt(criteria, country), {
                 temperature: 0.4,
                 maxOutputTokens: 1500,
               });

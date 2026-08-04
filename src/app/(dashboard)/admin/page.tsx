@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Portal from '@/components/ui/Portal';
+import { GEMINI_MODELS, modelLabel } from '@/lib/ai/models';
 
 const AI_PROVIDERS = [
   { id: 'gemini' as const, name: 'Google Gemini', desc: '雲端 AI，需要 API Key', icon: Globe },
@@ -16,20 +17,9 @@ const AI_PROVIDERS = [
   { id: 'lmstudio' as const, name: 'LM Studio', desc: '本地 AI，簡易介面', icon: Cpu },
 ];
 
-// Model IDs verified against ai.google.dev/gemini-api/docs/models.
-// Ordered by free-tier daily quota, not by capability: optimize-search issues
-// one request per target country, so requests-per-day is the limit this app
-// actually hits first. The Flash Lite models allow 500 RPD versus 20 RPD for
-// the full Flash models — a 25x difference that matters far more here than the
-// modest quality gain. Quotas shown are free-tier figures and can change.
-const GEMINI_MODELS = [
-  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (推薦｜免費 15/分、500/日)' },
-  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite (免費 15/分、500/日)' },
-  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (品質較佳｜免費僅 5/分、20/日)' },
-  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash (免費僅 5/分、20/日)' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (相容性最廣｜免費僅 5/分、20/日)' },
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (最強｜preview，需付費方案)' },
-];
+// GEMINI_MODELS lives in @/lib/ai/models so this page and the per-user key
+// dialog render the same catalogue — a second copy here would drift as soon as
+// Google renames a model or changes a quota.
 
 // Engine registry (must match server-side ENGINE_REGISTRY)
 const ENGINE_REGISTRY = [
@@ -810,6 +800,11 @@ export default function AdminPage() {
               <div style={{ marginTop: 16 }}>
                 <div className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span>🤖</span> 模型
+                  {aiCallMode === 'browser' && aiProvider === 'gemini' && (
+                    <span style={{ fontWeight: 400, fontSize: '0.76rem', color: 'var(--color-text-muted)' }}>
+                      （團隊預設值，使用者可在自己的金鑰設定中覆寫）
+                    </span>
+                  )}
                 </div>
                 {aiProvider === 'gemini' ? (
                   <select
@@ -819,7 +814,7 @@ export default function AdminPage() {
                     onChange={e => setAiModel(e.target.value)}
                   >
                     {GEMINI_MODELS.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
+                      <option key={m.id} value={m.id}>{modelLabel(m)}</option>
                     ))}
                   </select>
                 ) : (

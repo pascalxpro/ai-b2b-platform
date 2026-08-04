@@ -12,6 +12,7 @@
  */
 
 const KEY_STORAGE = 'ai-b2b:gemini-key';
+const MODEL_STORAGE = 'ai-b2b:gemini-model';
 
 export function getBrowserGeminiKey(): string {
   if (typeof window === 'undefined') return '';
@@ -39,6 +40,41 @@ export function setBrowserGeminiKey(key: string): void {
 
 export function clearBrowserGeminiKey(): void {
   setBrowserGeminiKey('');
+}
+
+/** Resolves which model to use: the user's override, else the team default. */
+export function resolveModel(teamDefault: string): string {
+  return getBrowserGeminiModel() || teamDefault;
+}
+
+/**
+ * Optional per-user model override.
+ *
+ * Only meaningful in browser mode: there each user spends their own free-tier
+ * quota, so the quality-versus-requests-per-day tradeoff is genuinely personal
+ * (500/day on Flash Lite vs 20/day on the full Flash models). An empty value
+ * means "follow the team default the admin configured".
+ */
+export function getBrowserGeminiModel(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(MODEL_STORAGE) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setBrowserGeminiModel(model: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (model) {
+      window.localStorage.setItem(MODEL_STORAGE, model);
+    } else {
+      window.localStorage.removeItem(MODEL_STORAGE);
+    }
+  } catch (e) {
+    console.warn('[ai] Could not persist model preference:', e);
+  }
 }
 
 /** Masks a key for display, e.g. AIzaSy...pqM4 */

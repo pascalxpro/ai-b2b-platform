@@ -4,33 +4,45 @@ import React, { useState } from 'react';
 import { X, Eye, EyeOff, ExternalLink, CheckCircle2, Loader2 } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import { callGemini } from '@/lib/ai/gemini';
-import { getBrowserGeminiKey, setBrowserGeminiKey, clearBrowserGeminiKey } from '@/lib/ai/browserKey';
+import {
+  getBrowserGeminiKey, setBrowserGeminiKey, clearBrowserGeminiKey,
+  getBrowserGeminiModel, setBrowserGeminiModel,
+} from '@/lib/ai/browserKey';
+import { GEMINI_MODELS, modelLabel, findModel } from '@/lib/ai/models';
 import styles from './BrowserKeyModal.module.css';
 
 export default function BrowserKeyModal({
-  model,
+  model: teamDefaultModel,
   onClose,
   onSaved,
 }: {
+  /** Team default configured by the admin; used when the user picks no override. */
   model: string;
   onClose: () => void;
   onSaved?: () => void;
 }) {
   const [key, setKey] = useState(getBrowserGeminiKey());
+  // '' means "follow the team default" rather than pinning a specific model.
+  const [modelOverride, setModelOverride] = useState(getBrowserGeminiModel());
   const [show, setShow] = useState(false);
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  const effectiveModel = modelOverride || teamDefaultModel;
+  const effectiveInfo = findModel(effectiveModel);
+  const defaultInfo = findModel(teamDefaultModel);
 
   const handleTest = async () => {
     setTesting(true);
     setResult(null);
     try {
       // Runs from this browser, which is the whole point: it proves the key
-      // works from the user's own network, not from the blocked server.
-      const reply = await callGemini(key.trim(), model, '請回覆「連線成功」四個字。', {
+      // works from the user's own network, not from the blocked server. It also
+      // tests the model actually selected, so an unavailable model shows up here.
+      const reply = await callGemini(key.trim(), effectiveModel, '請回覆「連線成功」四個字。', {
         maxOutputTokens: 50,
       });
-      setResult({ ok: true, message: `連線成功：${reply}` });
+      setResult({ ok: true, message: `連線成功（${effectiveModel}）：${reply}` });
     } catch (e: any) {
       setResult({ ok: false, message: e.message || '測試失敗' });
     } finally {
@@ -40,13 +52,16 @@ export default function BrowserKeyModal({
 
   const handleSave = () => {
     setBrowserGeminiKey(key);
+    setBrowserGeminiModel(modelOverride);
     onSaved?.();
     onClose();
   };
 
   const handleClear = () => {
     clearBrowserGeminiKey();
+    setBrowserGeminiModel('');
     setKey('');
+    setModelOverride('');
     setResult(null);
     onSaved?.();
   };
@@ -96,6 +111,34 @@ export default function BrowserKeyModal({
             >
               前往 Google AI Studio 免費取得金鑰 <ExternalLink size={13} />
             </a>
+
+            <label className={styles.field}>
+              <span>使用的模型</span>
+              <select
+                value={modelOverride}
+                onChange={e => { setModelOverride(e.target.value); setResult(null); }}
+                className={styles.select}
+              >
+                <option value="">
+                  跟隨系統預設
+                  {defaultInfo ? `（${defaultInfo.name}｜${defaultInfo.rpd}/日）` : ''}
+                </option>
+                {GEMINI_MODELS.map(m => (
+                  <option key={m.id} value={m.id}>{modelLabel(m)}</option>
+                ))}
+              </select>
+            </label>
+
+            {/* The quota is spent from this user's own key, so make the cost of
+                the choice explicit rather than burying it in the option text. */}
+            {effectiveInfo && (
+              <div className={effectiveInfo.rpd >= 500 ? styles.quotaOk : styles.quotaWarn}>
+                {effectiveInfo.rpd >= 500
+                  ? `✅ 目前使用 ${effectiveInfo.name}，您每日可用 ${effectiveInfo.rpd} 次（每分鐘 ${effectiveInfo.rpm} 次）。`
+                  : `⚠️ ${effectiveInfo.name} 每日僅 ${effectiveInfo.rpd} 次。AI 優化搜尋是「每個國家一次請求」，選 3 個國家即消耗 3 次，很快會用完。`}
+                {effectiveInfo.preview && ' 此為 preview 模型，通常需要已啟用計費的專案。'}
+              </div>
+            )}
 
             {result && (
               <div className={result.ok ? styles.resultOk : styles.resultErr}>
