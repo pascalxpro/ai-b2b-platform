@@ -19,6 +19,11 @@ const CONFIDENCE_META: Record<string, { label: string; color: string; title: str
   unscoped: { label: '—', color: 'var(--color-text-muted)', title: '此次搜尋未指定目標國家' },
 };
 
+// Display-only fallback for empty fields. Kept out of the stored row data so
+// the inline editor never pre-fills a placeholder and save it back as real
+// content.
+const show = (value: string, placeholder: string) => (value?.trim() ? value : placeholder);
+
 function SearchResultsContent() {
   const searchParams = useSearchParams();
   const taskId = searchParams.get('taskId');
@@ -30,6 +35,7 @@ function SearchResultsContent() {
   const [taskInfo, setTaskInfo] = useState<any | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Filter & Sort state
   const [searchTerm, setSearchTerm] = useState('');
@@ -79,14 +85,16 @@ function SearchResultsContent() {
             }
             return {
               id: d.id,
-              name: d.companyName || d.name || '未知',
+              name: d.companyName || d.name || '',
               localName: d.companyName || '',
-              // country is null when the domain gave no reliable signal — show it
-              // as unverified rather than inventing a country (see detectCountry).
-              country: d.country || '未確認',
+              // Raw values only — the "未確認"/"未知產業" placeholders are applied
+              // at render time (see PLACEHOLDER below). Baking them in here meant
+              // the inline editor pre-filled those literal strings, so saving a
+              // row wrote "未知產業" into the database as if it were real data.
+              country: d.country || '',
               countryConfidence: scoreObj?.countryConfidence || 'unscoped',
-              industry: scoreObj?.industry || '未知產業',
-              companyType: scoreObj?.companyType || '未知類型',
+              industry: scoreObj?.industry || '',
+              companyType: scoreObj?.companyType || '',
               employeeCount: scoreObj?.employeeCount || '',
               revenue: scoreObj?.revenue || '',
               // Fall back to 0 (not the old static 75) so results genuinely
@@ -101,7 +109,7 @@ function SearchResultsContent() {
               linkedin: scoreObj?.linkedin || '',
               notes: scoreObj?.notes || '',
               sources: d.sources || [],
-              provider: scoreObj?.provider || '未知',
+              provider: scoreObj?.provider || '',
               createdAt: d.createdAt
             };
           }));
@@ -316,8 +324,9 @@ function SearchResultsContent() {
   };
 
   const saveEdit = async (id: string) => {
+    setSavingEdit(true);
     try {
-      await fetch(`/api/search/results/${id}`, {
+      const res = await fetch(`/api/search/results/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -328,6 +337,14 @@ function SearchResultsContent() {
           website: editValues.website,
         }),
       });
+      // The response status was previously never checked: a 401 or 500 still
+      // updated local state and closed the editor, so the edit looked like it
+      // had saved and only vanished on the next reload.
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
       setResults(prev => prev.map(r => r.id === id ? {
         ...r,
         name: editValues.name,
@@ -339,8 +356,12 @@ function SearchResultsContent() {
       } : r));
       setEditingId(null);
       setEditValues({});
-    } catch (e) {
+    } catch (e: any) {
       console.error('Save failed:', e);
+      // Keep the editor open so the user's typing isn't thrown away.
+      alert(`儲存失敗（變更未寫入資料庫）：\n${e.message}`);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -484,9 +505,9 @@ function SearchResultsContent() {
                         <div className={styles.companyName} title={row.name}>
                           {row.website ? (
                             <a href={row.website} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                              {row.name}
+                              {show(row.name, '未知')}
                             </a>
-                          ) : row.name}
+                          ) : show(row.name, '未知')}
                         </div>
                         <div className={styles.companyLocalName} title={row.website || row.localName}>
                           {row.website ? (
@@ -500,10 +521,13 @@ function SearchResultsContent() {
                   </td>
                   <td className={styles.td}>
                     {editingId === row.id ? (
-                      <input style={{ width: 60, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.82rem' }} value={editValues.country || ''} onChange={e => setEditValues(v => ({ ...v, country: e.target.value }))} />
+                      // width:100% rather than a fixed 60px: the columns are
+                      // fixed-width now, so a hardcoded input width just left
+                      // most of the cell unusable.
+                      <input style={{ width: '100%', padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.82rem' }} value={editValues.country || ''} onChange={e => setEditValues(v => ({ ...v, country: e.target.value }))} />
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span>{row.country}</span>
+                        <span>{show(row.country, '未確認')}</span>
                         {row.countryConfidence !== 'unscoped' && (
                           <span
                             title={CONFIDENCE_META[row.countryConfidence]?.title}
@@ -524,18 +548,18 @@ function SearchResultsContent() {
                   </td>
                   <td className={styles.td}>
                     {editingId === row.id ? (
-                      <input style={{ width: 80, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.82rem' }} value={editValues.industry || ''} onChange={e => setEditValues(v => ({ ...v, industry: e.target.value }))} />
-                    ) : row.industry}
+                      <input style={{ width: '100%', padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.82rem' }} value={editValues.industry || ''} onChange={e => setEditValues(v => ({ ...v, industry: e.target.value }))} />
+                    ) : show(row.industry, '未知產業')}
                   </td>
                   <td className={styles.td}>
                     {editingId === row.id ? (
-                      <input style={{ width: 80, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.82rem' }} value={editValues.companyType || ''} onChange={e => setEditValues(v => ({ ...v, companyType: e.target.value }))} />
+                      <input style={{ width: '100%', padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)', color: 'var(--color-text)', fontSize: '0.82rem' }} value={editValues.companyType || ''} onChange={e => setEditValues(v => ({ ...v, companyType: e.target.value }))} />
                     ) : (
-                      <span className={`${styles.badge} ${styles.badgeMuted}`}>{row.companyType}</span>
+                      <span className={`${styles.badge} ${styles.badgeMuted}`}>{show(row.companyType, '未知類型')}</span>
                     )}
                   </td>
                   <td className={styles.td}>
-                    <span className={`${styles.badge} ${styles.badgeMuted}`} style={{ fontSize: '0.72rem' }}>{row.provider}</span>
+                    <span className={`${styles.badge} ${styles.badgeMuted}`} style={{ fontSize: '0.72rem' }}>{show(row.provider, '未知')}</span>
                   </td>
                   <td className={styles.td}>
                     <div className={styles.qualityBar}>
@@ -558,8 +582,8 @@ function SearchResultsContent() {
                     <div style={{ display: 'flex', gap: 4 }}>
                       {editingId === row.id ? (
                         <>
-                          <button className={styles.actionBtn} onClick={() => saveEdit(row.id)} title="儲存"><Save size={16} style={{ color: 'var(--color-success)' }} /></button>
-                          <button className={styles.actionBtn} onClick={cancelEdit} title="取消"><X size={16} style={{ color: '#ef4444' }} /></button>
+                          <button className={styles.actionBtn} onClick={() => saveEdit(row.id)} disabled={savingEdit} title="儲存"><Save size={16} style={{ color: 'var(--color-success)' }} /></button>
+                          <button className={styles.actionBtn} onClick={cancelEdit} disabled={savingEdit} title="取消"><X size={16} style={{ color: '#ef4444' }} /></button>
                         </>
                       ) : (
                         <>
@@ -588,7 +612,7 @@ function SearchResultsContent() {
           <div key={row.id} className={styles.resultCard} onClick={() => setDetailData(row)}>
             <div className={styles.cardTop}>
               <div>
-                <div className={styles.companyName}>{row.name}</div>
+                <div className={styles.companyName}>{show(row.name, '未知')}</div>
                 <div className={styles.companyLocalName}>{row.localName}</div>
               </div>
               <span className={`${styles.badge} ${getStatusBadgeClass(row.qualityStatus)}`}>
@@ -596,9 +620,9 @@ function SearchResultsContent() {
               </span>
             </div>
             <div className={styles.cardMeta}>
-              <span>{row.country}</span>
-              <span>{row.industry}</span>
-              <span>{row.companyType}</span>
+              <span>{show(row.country, '未確認')}</span>
+              <span>{show(row.industry, '未知產業')}</span>
+              <span>{show(row.companyType, '未知類型')}</span>
             </div>
             <div className={styles.cardBottom}>
               <div className={styles.qualityBar} style={{ flex: 1 }}>
