@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './page.module.css';
 import { 
-  Settings, Plus, Search, Edit2, Ban, GripVertical,
+  Settings, Plus, Search, Edit2, Ban, GripVertical, X,
   AlertTriangle, Globe, Monitor, Cpu, Zap, CheckCircle, XCircle,
   Eye, EyeOff, Shield
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Portal from '@/components/ui/Portal';
 
 const AI_PROVIDERS = [
   { id: 'gemini' as const, name: 'Google Gemini', desc: '雲端 AI，需要 API Key', icon: Globe },
@@ -78,8 +79,84 @@ export default function AdminPage() {
     setShowApiKeys(prev => ({ ...prev, [engineId]: !prev[engineId] }));
   };
 
+  // Raw user records from the API; display strings are derived at render time
+  // so edits don't have to keep a parallel formatted copy in sync.
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userSearch, setUserSearch] = useState('');
+  const [userModal, setUserModal] = useState<null | { mode: 'create' | 'edit'; user: any }>(null);
+  const [userSaving, setUserSaving] = useState(false);
+  const [userError, setUserError] = useState('');
+
+  // Promise chain rather than async/await: the react-hooks lint rule traces
+  // into async callbacks invoked from an effect and reports the setState calls
+  // as synchronous cascading renders, even though they run after an await.
+  const loadUsers = useCallback(() => {
+    return fetch('/api/users')
+      .then(r => r.json())
+      .then(data => setUsers(Array.isArray(data) ? data : []))
+      .catch(e => console.error('Failed to load users:', e))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const saveUser = async (form: { id?: string; name: string; email: string; password: string; isAdmin: boolean; status: string }) => {
+    setUserSaving(true);
+    setUserError('');
+    try {
+      const isEdit = Boolean(form.id);
+      const payload: Record<string, any> = {
+        name: form.name,
+        email: form.email,
+        status: form.status,
+        isAdmin: form.isAdmin,
+      };
+      if (form.id) payload.id = form.id;
+      // On edit an empty password field means "leave the password alone".
+      if (form.password) payload.password = form.password;
+
+      const res = await fetch('/api/users', {
+        method: isEdit ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      await loadUsers();
+      setUserModal(null);
+    } catch (e: any) {
+      setUserError(e.message);
+    } finally {
+      setUserSaving(false);
+    }
+  };
+
+  const toggleUserStatus = async (user: any) => {
+    const nextStatus = user.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const verb = nextStatus === 'ACTIVE' ? '啟用' : '停用';
+    if (!confirm(`確定要${verb} ${user.name}（${user.email}）嗎？`)) return;
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: user.id, status: nextStatus }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      await loadUsers();
+    } catch (e: any) {
+      alert(`${verb}失敗：${e.message}`);
+    }
+  };
+
+  const visibleUsers = users.filter(u => {
+    const q = userSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
+  });
 
   // Engine states
   const [engines, setEngines] = useState<EngineState[]>([]);
@@ -104,26 +181,9 @@ export default function AdminPage() {
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    // Fetch users
-    fetch('/api/users')
-      .then(r => r.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setUsers(data.map((u: any) => ({
-            id: u.id,
-            name: u.name || '未知',
-            email: u.email || '',
-            role: u.isAdmin ? '管理員' : (u.workspaceMembers?.[0]?.role || '成員'),
-            roleClass: styles.badgeDefault,
-            ws: u.workspaceMembers?.[0]?.workspace?.name || '無',
-            status: u.status === 'ACTIVE' ? '啟用' : '停用',
-            statusClass: u.status === 'ACTIVE' ? styles.badgeSuccess : styles.badgeWarning,
-            login: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '未知'
-          })));
-        }
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    // Fire-and-forget: every setState inside happens after an await, so it
+    // cannot cascade renders synchronously from the effect body.
+    void loadUsers();
 
     // Fetch Settings
     fetch('/api/admin/settings')
@@ -165,7 +225,9 @@ export default function AdminPage() {
         }
       })
       .catch(console.error);
-  }, []);
+    // loadUsers is a useCallback with no deps, so it is stable and this still
+    // runs exactly once on mount.
+  }, [loadUsers]);
 
   // Engine helpers
   const getRegistryInfo = (id: string) => ENGINE_REGISTRY.find(e => e.id === id);
@@ -393,9 +455,21 @@ export default function AdminPage() {
             <div className={styles.toolbar}>
               <div className={styles.searchBox}>
                 <Search size={18} className={styles.searchIcon} />
-                <input type="text" placeholder="搜尋使用者..." className={styles.searchInput} />
+                <input
+                  type="text"
+                  placeholder="搜尋使用者..."
+                  className={styles.searchInput}
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                />
               </div>
-              <button className={styles.primaryBtn} onClick={() => alert('新增使用者功能開發中')}>
+              <button
+                className={styles.primaryBtn}
+                onClick={() => {
+                  setUserError('');
+                  setUserModal({ mode: 'create', user: { name: '', email: '', isAdmin: false, status: 'ACTIVE' } });
+                }}
+              >
                 <Plus size={18} />
                 新增使用者
               </button>
@@ -417,24 +491,49 @@ export default function AdminPage() {
                 <tbody>
                   {loading ? (
                     <tr><td colSpan={7}>載入中...</td></tr>
-                  ) : users.map((user, i) => (
-                    <tr key={i}>
-                      <td>{user.name}</td>
-                      <td>{user.email}</td>
-                      <td><span className={`${styles.badge} ${user.roleClass}`}>{user.role}</span></td>
-                      <td>{user.ws}</td>
-                      <td><span className={`${styles.badge} ${user.statusClass}`}>{user.status}</span></td>
-                      <td>{user.login}</td>
-                      <td>
-                        <div className={styles.actionBtns}>
-                          <button className={styles.iconBtn} title="編輯" onClick={() => alert('編輯使用者功能開發中')}><Edit2 size={16} /></button>
-                          <button className={`${styles.iconBtn} ${styles.danger}`} title={user.status === '啟用' ? '停用' : '啟用'} onClick={() => alert('停用功能開發中')}>
-                            <Ban size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  ) : visibleUsers.length === 0 ? (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--color-text-muted)' }}>
+                      {userSearch ? '找不到符合的使用者' : '尚無使用者'}
+                    </td></tr>
+                  ) : visibleUsers.map(user => {
+                    const active = user.status === 'ACTIVE';
+                    return (
+                      <tr key={user.id}>
+                        <td>{user.name || '未知'}</td>
+                        <td>{user.email}</td>
+                        <td>
+                          <span className={`${styles.badge} ${user.isAdmin ? styles.badgeSuccess : styles.badgeDefault}`}>
+                            {user.isAdmin ? '管理員' : (user.workspaceMembers?.[0]?.role || '成員')}
+                          </span>
+                        </td>
+                        <td>{user.workspaceMembers?.[0]?.workspace?.name || '無'}</td>
+                        <td>
+                          <span className={`${styles.badge} ${active ? styles.badgeSuccess : styles.badgeWarning}`}>
+                            {active ? '啟用' : '停用'}
+                          </span>
+                        </td>
+                        <td>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '未知'}</td>
+                        <td>
+                          <div className={styles.actionBtns}>
+                            <button
+                              className={styles.iconBtn}
+                              title="編輯"
+                              onClick={() => { setUserError(''); setUserModal({ mode: 'edit', user }); }}
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              className={`${styles.iconBtn} ${styles.danger}`}
+                              title={active ? '停用' : '啟用'}
+                              onClick={() => toggleUserStatus(user)}
+                            >
+                              <Ban size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -790,6 +889,103 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {userModal && (
+        <UserFormModal
+          mode={userModal.mode}
+          user={userModal.user}
+          saving={userSaving}
+          error={userError}
+          onCancel={() => setUserModal(null)}
+          onSave={saveUser}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── Create / edit user ───
+function UserFormModal({
+  mode, user, saving, error, onCancel, onSave,
+}: {
+  mode: 'create' | 'edit';
+  user: any;
+  saving: boolean;
+  error: string;
+  onCancel: () => void;
+  onSave: (form: { id?: string; name: string; email: string; password: string; isAdmin: boolean; status: string }) => void;
+}) {
+  const [name, setName] = useState(user.name || '');
+  const [email, setEmail] = useState(user.email || '');
+  const [password, setPassword] = useState('');
+  const [isAdmin, setIsAdmin] = useState(Boolean(user.isAdmin));
+  const [status, setStatus] = useState(user.status || 'ACTIVE');
+
+  const isEdit = mode === 'edit';
+  // A new account with no password could never be signed into, so require one
+  // on create; on edit an empty field just leaves the existing password alone.
+  const canSubmit = name.trim() && email.trim() && (isEdit || password.length >= 8) && !saving;
+
+  return (
+    <Portal>
+      <div className={styles.modalOverlay} onClick={onCancel}>
+        <div className={styles.modalPanel} onClick={e => e.stopPropagation()}>
+          <div className={styles.modalHeader}>
+            <h3>{isEdit ? '編輯使用者' : '新增使用者'}</h3>
+            <button className={styles.iconBtn} onClick={onCancel}><X size={20} /></button>
+          </div>
+
+          {error && <div className={styles.modalError}>❌ {error}</div>}
+
+          <div className={styles.modalBody}>
+            <label className={styles.modalField}>
+              <span>姓名</span>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="王小明" />
+            </label>
+
+            <label className={styles.modalField}>
+              <span>Email</span>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="user@company.com" />
+            </label>
+
+            <label className={styles.modalField}>
+              <span>{isEdit ? '重設密碼（留空表示不變更）' : '初始密碼（至少 8 碼）'}</span>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={isEdit ? '不變更' : '至少 8 碼'}
+                autoComplete="new-password"
+              />
+            </label>
+
+            <label className={styles.modalField}>
+              <span>狀態</span>
+              <select value={status} onChange={e => setStatus(e.target.value)}>
+                <option value="ACTIVE">啟用</option>
+                <option value="INACTIVE">停用</option>
+                <option value="SUSPENDED">已暫停</option>
+              </select>
+            </label>
+
+            <label className={styles.modalCheckbox}>
+              <input type="checkbox" checked={isAdmin} onChange={e => setIsAdmin(e.target.checked)} />
+              <span>管理員權限（可存取系統管理、API 金鑰與使用者管理）</span>
+            </label>
+          </div>
+
+          <div className={styles.modalFooter}>
+            <button className={styles.modalCancelBtn} onClick={onCancel} disabled={saving}>取消</button>
+            <button
+              className={styles.primaryBtn}
+              disabled={!canSubmit}
+              onClick={() => onSave({ id: user.id, name: name.trim(), email: email.trim(), password, isAdmin, status })}
+            >
+              {saving ? '儲存中...' : '儲存'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Portal>
   );
 }

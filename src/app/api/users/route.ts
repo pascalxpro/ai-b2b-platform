@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { requireAdmin } from '@/lib/auth/guard';
+import { requireAdmin, isAdminUser } from '@/lib/auth/guard';
 import { hashPassword } from '@/lib/auth/session';
 
 // Fields a caller is allowed to set. Notably absent: passwordHash and isAdmin —
@@ -38,7 +38,14 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return NextResponse.json(users);
+
+    // Report the *effective* admin flag, i.e. the same rule the auth layer
+    // applies. Otherwise the bootstrap admin (granted by its unique email
+    // rather than the isAdmin column) shows up in the UI as a plain member
+    // even though it has full admin access.
+    return NextResponse.json(
+      users.map(u => ({ ...u, isAdmin: isAdminUser(u) }))
+    );
   } catch (error: any) {
     console.error('[API] Failed to list users:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -54,10 +61,16 @@ export async function POST(request: NextRequest) {
     if (!body.email || !body.name) {
       return NextResponse.json({ error: 'name 與 email 為必填' }, { status: 400 });
     }
+    // Enforced here too, not just in the UI: an account created without a
+    // password gets a null hash, which now rejects every login attempt — the
+    // account would exist but be permanently unusable.
+    if (!body.password || String(body.password).length < 8) {
+      return NextResponse.json({ error: '請設定至少 8 碼的初始密碼' }, { status: 400 });
+    }
 
     const data = pickEditable(body);
     data.status = data.status || 'ACTIVE';
-    if (body.password) data.passwordHash = hashPassword(body.password);
+    data.passwordHash = hashPassword(String(body.password));
     // Only an existing admin can mint another admin, and only explicitly.
     if (body.isAdmin === true) data.isAdmin = true;
 
@@ -84,7 +97,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     const data = pickEditable(body);
-    if (body.password) data.passwordHash = hashPassword(body.password);
+    if (body.password) {
+      if (String(body.password).length < 8) {
+        return NextResponse.json({ error: '密碼至少需要 8 碼' }, { status: 400 });
+      }
+      data.passwordHash = hashPassword(String(body.password));
+    }
     if (typeof body.isAdmin === 'boolean') {
       // Don't let an admin lock themselves out of the admin area.
       if (body.isAdmin === false && id === auth.id) {
