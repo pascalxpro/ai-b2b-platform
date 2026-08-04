@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { requireAdmin, isAdminUser } from '@/lib/auth/guard';
 import { hashPassword } from '@/lib/auth/session';
+import { ensureDefaultWorkspaceMembership } from '@/lib/db/workspace';
 
 // Fields a caller is allowed to set. Notably absent: passwordHash and isAdmin —
 // the old handler spread the whole request body straight into Prisma, so an
@@ -78,6 +79,17 @@ export async function POST(request: NextRequest) {
       data: data as any,
       select: { id: true, name: true, email: true, status: true, isAdmin: true, createdAt: true },
     });
+
+    // Put the new account in the default workspace straight away. Without this
+    // it sits at Workspace「無」 until the person happens to run their first
+    // search, which is when the workspace helper would otherwise enrol them.
+    try {
+      await ensureDefaultWorkspaceMembership(user.id, auth.id, data.isAdmin ? 'ADMIN' : 'MEMBER');
+    } catch (e) {
+      // The account itself is created; don't fail the request over membership.
+      console.error('[API] Could not add new user to default workspace:', e);
+    }
+
     return NextResponse.json(user, { status: 201 });
   } catch (error: any) {
     console.error('[API] Failed to create user:', error);
@@ -116,6 +128,16 @@ export async function PATCH(request: NextRequest) {
       data,
       select: { id: true, name: true, email: true, status: true, isAdmin: true },
     });
+
+    // Backfill membership for accounts created before this was automatic —
+    // re-saving such a user is enough to fix their Workspace「無」. Existing
+    // memberships are left untouched, so this never changes anyone's role.
+    try {
+      await ensureDefaultWorkspaceMembership(user.id, auth.id);
+    } catch (e) {
+      console.error('[API] Could not ensure workspace membership:', e);
+    }
+
     return NextResponse.json(user);
   } catch (error: any) {
     console.error('[API] Failed to update user:', error);
