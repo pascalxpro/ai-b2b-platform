@@ -25,6 +25,7 @@ export default function SearchCenterPage() {
   const router = useRouter();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchError, setSearchError] = useState('');
   const [recentSearches, setRecentSearches] = useState<any[]>([]);
   const [stats, setStats] = useState({ recentCount: 0, savedCount: 0, runningCount: 0, todayCount: 0, weekResults: 0 });
 
@@ -80,6 +81,7 @@ export default function SearchCenterPage() {
   const quickSearch = async (query: string) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    setSearchError('');
     try {
       const res = await fetch('/api/search/tasks', {
         method: 'POST',
@@ -93,11 +95,14 @@ export default function SearchCenterPage() {
       if (res.ok) {
         const task = await res.json();
         router.push(`/search/${task.id}`);
-      } else {
-        router.push('/search/results');
+        return;
       }
-    } catch {
-      router.push('/search/results');
+      // Previously this redirected to an empty results pool without a word,
+      // so a failed search was indistinguishable from one that found nothing.
+      const data = await res.json().catch(() => ({}));
+      setSearchError(data.error || `搜尋失敗（HTTP ${res.status}）`);
+    } catch (e: any) {
+      setSearchError(e.message || '搜尋失敗，請稍後再試');
     } finally {
       setIsSubmitting(false);
     }
@@ -160,6 +165,11 @@ export default function SearchCenterPage() {
               <span>搜尋</span>
             </button>
           </div>
+          {searchError && (
+            <div className={styles.searchError}>
+              ❌ {searchError}
+            </div>
+          )}
           <div className={styles.searchHints}>
             <span className={styles.hintLabel}>熱門：</span>
             <button className={styles.hintChip} onClick={() => handleHintClick('東南亞代理商')}>東南亞代理商</button>

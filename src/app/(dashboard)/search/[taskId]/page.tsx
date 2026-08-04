@@ -112,6 +112,25 @@ export default function SearchTaskDetailPage() {
           </div>
         </div>
 
+        {/* Explains a FAILED task, or a COMPLETED one that produced nothing —
+            both previously rendered as an empty table with no reason given. */}
+        {task.errorMessage && (
+          <div
+            style={{
+              margin: '12px 0',
+              padding: '10px 14px',
+              borderRadius: 8,
+              background: task.status === 'FAILED' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+              border: `1px solid ${task.status === 'FAILED' ? 'rgba(239,68,68,0.4)' : 'rgba(245,158,11,0.4)'}`,
+              color: task.status === 'FAILED' ? '#ef4444' : '#f59e0b',
+              fontSize: '0.85rem',
+              lineHeight: 1.6,
+            }}
+          >
+            {task.status === 'FAILED' ? '❌ ' : '⚠️ '}{task.errorMessage}
+          </div>
+        )}
+
         <div className={styles.progressSection}>
           <div className={styles.progressHeader}>
             <span className={styles.progressLabel}>搜尋進度</span>

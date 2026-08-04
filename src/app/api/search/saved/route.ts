@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/guard';
+import { getOrCreateDefaultWorkspace } from '@/lib/db/workspace';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -31,24 +32,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    
-    // For demo/prototype, use the first workspace and user if not provided via auth session
-    const defaultWorkspace = await prisma.workspace.findFirst();
-    const defaultUser = await prisma.user.findFirst();
-    
-    if (!defaultWorkspace || !defaultUser) {
-      throw new Error("No default workspace or user found");
-    }
+
+    // Same fix as the search-task route: create the workspace on first use
+    // instead of failing, and credit the authenticated caller rather than
+    // whichever user happened to be first in the table.
+    const workspace = await getOrCreateDefaultWorkspace(auth.id);
 
     const { name, criteria } = body;
-    
-    const saved = await prisma.savedSearch.create({ 
+
+    const saved = await prisma.savedSearch.create({
       data: {
         name: name || '未命名儲存條件',
-        workspaceId: defaultWorkspace.id,
-        ownerUserId: defaultUser.id,
+        workspaceId: workspace.id,
+        ownerUserId: auth.id,
         criteriaJson: criteria || {}
-      } 
+      }
     });
     
     return NextResponse.json(saved, { status: 201 });

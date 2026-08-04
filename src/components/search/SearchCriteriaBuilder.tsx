@@ -87,6 +87,7 @@ export default function SearchCriteriaBuilder({
   const [isEstimating, setIsEstimating] = useState(false);
   const [showEstimates, setShowEstimates] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
   // AI Optimization preview state
   type OptimizedData = { description: string; industries: string[]; companyTypes: string[]; keywords: string[]; langCode: string; langName: string };
@@ -412,14 +413,16 @@ export default function SearchCriteriaBuilder({
       if (response.ok) {
         const task = await response.json();
         router.push(`/search/${task.id}`);
-      } else {
-        router.push('/search/results');
+        onClose();
+        return;
       }
-      onClose();
-    } catch (error) {
+      // Don't close the modal on failure — the user loses their criteria and
+      // lands on an empty results pool with no idea what went wrong.
+      const data = await response.json().catch(() => ({}));
+      setSearchError(data.error || `建立搜尋任務失敗（HTTP ${response.status}）`);
+    } catch (error: any) {
       console.error('Failed to create task', error);
-      router.push('/search/results');
-      onClose();
+      setSearchError(error.message || '建立搜尋任務失敗');
     } finally {
       setIsSearching(false);
     }
@@ -768,6 +771,10 @@ export default function SearchCriteriaBuilder({
               <span className={styles.estimateValue}>${(targetCount * 0.1).toFixed(2)}</span>
             </div>
           </div>
+        )}
+
+        {searchError && (
+          <div className={styles.submitError}>❌ {searchError}</div>
         )}
 
         <div className={styles.actions}>

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { executeSearchTask } from '@/lib/search/searchService';
 import { requireAuth } from '@/lib/auth/guard';
+import { getOrCreateDefaultWorkspace } from '@/lib/db/workspace';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -38,22 +39,19 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    
-    // For demo/prototype, use the first workspace and user if not provided via auth session
-    const defaultWorkspace = await prisma.workspace.findFirst();
-    const defaultUser = await prisma.user.findFirst();
-    
-    if (!defaultWorkspace || !defaultUser) {
-      throw new Error("No default workspace or user found");
-    }
+
+    // Was `user.findFirst()` — a prototype stand-in from before sessions
+    // existed, which credited every task to whichever user happened to be first
+    // in the table. Now that requests are authenticated, use the real caller.
+    const workspace = await getOrCreateDefaultWorkspace(auth.id);
 
     const { name, criteria, autoStart } = body;
-    
-    const task = await prisma.searchTask.create({ 
+
+    const task = await prisma.searchTask.create({
       data: {
         name: name || '未命名搜尋',
-        workspaceId: defaultWorkspace.id,
-        createdById: defaultUser.id,
+        workspaceId: workspace.id,
+        createdById: auth.id,
         queryText: criteria?.queryText || '',
         criteriaJson: criteria || {},
         targetCount: criteria?.targetCount || 50,

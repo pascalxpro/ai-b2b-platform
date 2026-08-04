@@ -542,6 +542,22 @@ export async function executeSearchTask(taskId: string) {
       }
     }
 
+    // No provider was dispatched at all — every engine is either disabled or
+    // enabled but missing the API key / extra config it needs. Previously this
+    // still finished as COMPLETED with zero results, which is indistinguishable
+    // from "searched properly and found nothing".
+    if (providerPromises.length === 0) {
+      const reason = enabledEngines.length === 0
+        ? '沒有啟用任何搜尋引擎，請至「系統管理 → 搜尋引擎管理」勾選並設定引擎。'
+        : `已啟用的引擎（${enabledEngines.map(e => e.id).join(', ')}）都缺少必要的 API Key 或設定，無法執行搜尋。`;
+      console.error(`[SearchService] Task ${taskId} aborted: ${reason}`);
+      await prisma.searchTask.update({
+        where: { id: taskId },
+        data: { status: 'FAILED', errorMessage: reason },
+      });
+      return;
+    }
+
     // Wait for ALL providers to complete
     const providerResults = await Promise.allSettled(
       providerPromises.map(p => p.promise)
@@ -708,10 +724,20 @@ export async function executeSearchTask(taskId: string) {
       }
     }
 
-    // Update task status
+    // Every provider ran but nothing usable came back. Record why, so the task
+    // detail page can explain it instead of just showing an empty table.
+    const providerErrors = providerResults
+      .map((o, i) => (o.status === 'rejected' ? providerPromises[i].name : null))
+      .filter(Boolean);
+    const emptyReason = savedCount === 0
+      ? providerErrors.length === providerPromises.length
+        ? `所有搜尋引擎都呼叫失敗（${[...new Set(providerErrors)].join(', ')}），請確認 API Key 是否有效或額度是否用盡。`
+        : '搜尋引擎有回應，但沒有任何結果通過過濾條件（可能是關鍵字太窄、國別限制過嚴，或結果都被排除清單擋下）。'
+      : null;
+
     await prisma.searchTask.update({
       where: { id: taskId },
-      data: { status: 'COMPLETED' },
+      data: { status: 'COMPLETED', errorMessage: emptyReason },
     });
 
     const providerSummary = [...new Set(allResults.map(r => r.provider))].join(', ');
@@ -720,7 +746,8 @@ export async function executeSearchTask(taskId: string) {
     console.error(`[SearchService] Task ${taskId} FAILED:`, error);
     await prisma.searchTask.update({
       where: { id: taskId },
-      data: { status: 'FAILED' },
+      // Keep the reason: the UI previously showed a bare "失敗" with no clue.
+      data: { status: 'FAILED', errorMessage: String(error?.message || error).substring(0, 500) },
     });
   }
 }

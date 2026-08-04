@@ -758,3 +758,15 @@
   background: var(--color-primary);
   color: #fff;
 }
+
+.submitError {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  font-size: 0.83rem;
+  line-height: 1.6;
+  word-break: break-word;
+}

@@ -489,3 +489,17 @@
     padding: 4px 4px 4px 16px;
   }
 }
+
+.searchError {
+  margin: 12px auto 0;
+  max-width: 720px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  text-align: left;
+  word-break: break-word;
+}
