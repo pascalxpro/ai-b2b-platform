@@ -1,82 +1,103 @@
+/*
+ * This stylesheet previously referenced a second, non-existent token set:
+ * --spacing-N (the real scale is --space-N), plus --color-text-primary /
+ * -secondary / -tertiary and --color-glass-bg / -border, none of which are
+ * defined in tokens.css. Every declaration using them was dropped by the
+ * browser, which is why the inputs had no padding (text sitting under the
+ * icons), no gap between fields, and no background or border.
+ */
+
 .container {
   width: 100%;
-  max-width: 440px;
+  max-width: 420px;
   position: relative;
   z-index: 10;
   padding: var(--space-4);
-  animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .loginCard {
-  padding: var(--space-8) var(--space-6);
+  padding: var(--space-8) var(--space-7);
   border-radius: var(--radius-2xl);
   border: 1px solid var(--color-border-subtle);
-  box-shadow: var(--shadow-xl), 0 0 0 1px var(--color-border-glow);
+  box-shadow: var(--shadow-lg);
   background: var(--color-surface-raised);
 }
 
+/* ─── Header ─── */
 .header {
   text-align: center;
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-7);
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .logoWrapper {
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: var(--radius-xl);
   background: linear-gradient(135deg, hsl(var(--hue-primary), 80%, 55%), hsl(var(--hue-accent), 80%, 50%));
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: var(--space-4);
-  box-shadow: 0 8px 24px hsla(var(--hue-primary), 80%, 55%, 0.4);
+  box-shadow: 0 8px 20px hsla(var(--hue-primary), 80%, 55%, 0.32);
 }
 
 .logoIcon {
-  color: white;
+  color: #fff;
 }
 
 .title {
-  font-size: 2rem;
-  font-weight: 700;
-  background: linear-gradient(to right, hsl(var(--hue-primary), 70%, 60%), hsl(var(--hue-accent), 70%, 60%));
+  font-size: 1.75rem;
+  font-weight: var(--fw-bold);
+  line-height: 1.2;
+  background: linear-gradient(to right, hsl(var(--hue-primary), 70%, 58%), hsl(var(--hue-accent), 70%, 58%));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
-  margin-bottom: var(--space-2);
-  letter-spacing: -0.5px;
+  margin: 0 0 var(--space-1);
+  letter-spacing: -0.02em;
 }
 
 .subtitle {
   color: var(--color-text-muted);
-  font-size: 1rem;
+  font-size: var(--fs-sm);
+  margin: 0;
 }
 
+/* ─── Error ─── */
 .alert {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #ef4444;
-  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
+  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  margin-bottom: var(--spacing-6);
-  backdrop-filter: blur(4px);
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
 }
 
+.alert svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ─── Form ─── */
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
+  gap: var(--space-4);
 }
 
 .inputGroup {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
+  gap: var(--space-2);
 }
 
 .inputWrapper {
@@ -87,95 +108,109 @@
 
 .inputIcon {
   position: absolute;
-  left: var(--spacing-3);
-  color: var(--color-text-tertiary);
+  left: 14px;
+  color: var(--color-text-muted);
   pointer-events: none;
+  display: flex;
 }
 
 .input {
   width: 100%;
-  background: var(--color-glass-bg);
-  border: 1px solid var(--color-glass-border);
-  color: var(--color-text-primary);
+  height: 46px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
   border-radius: var(--radius-md);
-  padding: var(--spacing-3) var(--spacing-4);
-  padding-left: calc(var(--spacing-3) * 2 + 20px);
+  /* Left padding clears the 20px icon at left:14px. */
+  padding: 0 44px 0 44px;
   outline: none;
-  transition: all 0.2s ease;
-  font-size: 1rem;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
 }
 
 .input:focus {
   border-color: var(--color-primary);
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.2);
+  box-shadow: 0 0 0 3px var(--color-primary-subtle);
 }
 
 .togglePassword {
   position: absolute;
-  right: var(--spacing-3);
+  right: 12px;
   background: none;
   border: none;
-  color: var(--color-text-tertiary);
+  color: var(--color-text-muted);
   cursor: pointer;
-  padding: 0;
+  padding: 4px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .togglePassword:hover {
-  color: var(--color-text-primary);
+  color: var(--color-text);
 }
 
+/* ─── Options row ─── */
 .options {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: var(--spacing-2);
-  margin-bottom: var(--spacing-2);
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
 }
 
 .checkboxLabel {
   display: flex;
   align-items: center;
-  gap: var(--spacing-2);
-  color: var(--color-text-secondary);
+  gap: var(--space-2);
+  color: var(--color-text-muted);
   cursor: pointer;
+  user-select: none;
 }
 
 .checkbox {
+  width: 15px;
+  height: 15px;
   accent-color: var(--color-primary);
+  cursor: pointer;
+  margin: 0;
 }
 
 .forgotPassword {
   color: var(--color-primary);
   text-decoration: none;
+  font-size: var(--fs-sm);
 }
 
 .forgotPassword:hover {
   text-decoration: underline;
 }
 
+/* ─── Submit ─── */
 .submitBtn {
   width: 100%;
-  padding: var(--space-3);
-  font-size: 1rem;
+  height: 46px;
+  font-size: 0.95rem;
   font-weight: var(--fw-semibold);
-  margin-top: var(--space-4);
+  font-family: inherit;
+  margin-top: var(--space-2);
   background: linear-gradient(135deg, hsl(var(--hue-primary), 80%, 55%), hsl(var(--hue-accent), 80%, 50%));
-  color: white;
+  color: #fff;
   border: none;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 14px hsla(var(--hue-primary), 80%, 55%, 0.3);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  box-shadow: 0 4px 12px hsla(var(--hue-primary), 80%, 55%, 0.28);
 }
 
 .submitBtn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px hsla(var(--hue-primary), 80%, 55%, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px hsla(var(--hue-primary), 80%, 55%, 0.36);
 }
 
 .submitBtn:active:not(:disabled) {
@@ -183,74 +218,86 @@
 }
 
 .submitBtn:disabled {
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: not-allowed;
-  filter: grayscale(0.5);
 }
 
+/* ─── Divider ─── */
 .divider {
   display: flex;
   align-items: center;
-  text-align: center;
-  margin: var(--spacing-6) 0;
-  color: var(--color-text-tertiary);
-  font-size: 0.875rem;
+  margin: var(--space-6) 0 var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--fs-xs);
 }
 
 .divider::before,
 .divider::after {
   content: '';
   flex: 1;
-  border-bottom: 1px solid var(--color-glass-border);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .divider span {
-  padding: 0 var(--spacing-4);
+  padding: 0 var(--space-3);
 }
 
+/* ─── SSO (not yet available) ─── */
 .ssoContainer {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-3);
+  gap: var(--space-3);
 }
 
 .ssoBtn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--spacing-3);
+  /* Icon and label sit together on the left; the badge is pushed to the right
+     by margin-left:auto rather than being absolutely positioned over the text,
+     which is what made them overlap. */
+  gap: var(--space-3);
   width: 100%;
-  padding: var(--spacing-3);
-  background: var(--color-glass-bg);
-  border: 1px solid var(--color-glass-border);
-  color: var(--color-text-secondary);
+  height: 44px;
+  padding: 0 14px;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
   border-radius: var(--radius-md);
-  font-size: 0.875rem;
+  font-size: var(--fs-sm);
+  font-family: inherit;
   cursor: not-allowed;
-  position: relative;
-  opacity: 0.7;
+  opacity: 0.65;
+}
+
+.ssoIcon {
+  flex-shrink: 0;
+  display: flex;
 }
 
 .badge {
-  position: absolute;
-  right: var(--spacing-3);
+  margin-left: auto;
   background: var(--color-surface-hover);
+  border: 1px solid var(--color-border-subtle);
   padding: 2px 8px;
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  color: var(--color-text-tertiary);
+  font-size: var(--fs-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
+/* ─── Footer ─── */
 .footer {
-  margin-top: var(--spacing-8);
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border-subtle);
   text-align: center;
 }
 
 .telegramLink {
-  color: var(--color-text-secondary);
-  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color var(--transition-fast);
 }
 
 .telegramLink:hover {
@@ -260,10 +307,16 @@
 @keyframes slideUpFade {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 480px) {
+  .loginCard {
+    padding: var(--space-6) var(--space-5);
   }
 }
