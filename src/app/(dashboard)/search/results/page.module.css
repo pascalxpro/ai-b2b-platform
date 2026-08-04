@@ -90,6 +90,11 @@
 .table {
   width: 100%;
   border-collapse: collapse;
+  /* Honour the <colgroup> widths so every page renders identical columns
+     regardless of how long that page's company names happen to be. */
+  table-layout: fixed;
+  /* Below this the fixed columns would be crushed; scroll instead. */
+  min-width: 980px;
 }
 
 .th {
@@ -123,15 +128,23 @@
   cursor: pointer;
 }
 
+/* The name column is the only flexible one, so long values must be clipped
+   here rather than widening the table. Full text is exposed via title=. */
 .companyName {
   font-weight: 600;
   color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .companyLocalName {
   font-size: 0.8rem;
   color: var(--color-text-muted);
   margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .qualityBar {

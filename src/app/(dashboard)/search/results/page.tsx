@@ -419,9 +419,26 @@ function SearchResultsContent() {
           </div>
         ) : (
           <table className={styles.table}>
+            {/* Fixed column widths. With the default auto layout plus
+                white-space:nowrap, a page of long company names (article
+                titles from Tavily run to 30+ characters) stretched the name
+                column until 狀態 and 操作 were pushed off the right edge —
+                so the same table appeared to have different columns on
+                different pages. */}
+            <colgroup>
+              <col style={{ width: 44 }} />
+              <col />
+              <col style={{ width: 140 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 130 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 92 }} />
+            </colgroup>
             <thead>
               <tr>
-                <th className={styles.th} style={{ width: 40 }}>
+                <th className={styles.th}>
                   <input
                     type="checkbox"
                     className={styles.checkbox}
@@ -462,14 +479,16 @@ function SearchResultsContent() {
                       />
                     ) : (
                       <>
-                        <div className={styles.companyName}>
+                        {/* title= keeps the full name reachable now that the
+                            cell truncates instead of stretching the table. */}
+                        <div className={styles.companyName} title={row.name}>
                           {row.website ? (
                             <a href={row.website} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
                               {row.name}
                             </a>
                           ) : row.name}
                         </div>
-                        <div className={styles.companyLocalName}>
+                        <div className={styles.companyLocalName} title={row.website || row.localName}>
                           {row.website ? (
                             <a href={row.website} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)', textDecoration: 'none', fontSize: '0.78rem' }}>
                               {row.localName} ↗
