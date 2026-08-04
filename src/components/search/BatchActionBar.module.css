@@ -3,15 +3,22 @@
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  width: 90%;
-  max-width: 600px;
+  /* Fixed 600px was narrower than 4 buttons + the count text actually need,
+     so the count text — the only piece without white-space:nowrap — got
+     squeezed and wrapped mid-word ("已選" / "取" split onto two lines).
+     Sizing to content and capping against the viewport (with horizontal
+     scroll as a last resort on very narrow screens) removes the squeeze
+     instead of just hiding its symptom. */
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  overflow-x: auto;
   background: var(--color-surface);
   border: 1px solid var(--color-border-glow);
   border-radius: var(--radius-2xl, 24px);
   padding: 12px 24px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 20px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(16px);
   z-index: 100;
@@ -25,6 +32,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .countNumber {
@@ -39,6 +48,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .btn {
@@ -54,6 +64,8 @@
   transition: all 0.2s ease;
   background: var(--color-surface-alt);
   color: var(--color-text);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .btn:hover {
@@ -106,14 +118,27 @@
 
 @media (max-width: 640px) {
   .container {
+    /* Stacked layout needs an explicit width again: a width:100% child (the
+       actions row below) inside a width:max-content parent is an ambiguous
+       sizing loop, since percentage widths don't contribute to max-content's
+       own intrinsic-size calculation. */
+    width: 90%;
+    max-width: 420px;
     flex-direction: column;
     gap: 12px;
     padding: 16px;
     border-radius: var(--radius-xl, 16px);
   }
+  .countText {
+    white-space: normal;
+    text-align: center;
+  }
   .actions {
     width: 100%;
     justify-content: space-between;
     flex-wrap: wrap;
+  }
+  .btn {
+    white-space: normal;
   }
 }
