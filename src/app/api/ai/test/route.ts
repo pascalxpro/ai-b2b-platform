@@ -9,9 +9,11 @@ export async function POST(request: NextRequest) {
       if (!apiKey) {
         return NextResponse.json({ success: false, error: 'API Key 未填寫' });
       }
-      // Fallback is a current GA model — gemini-2.0-flash-lite is no longer in
-      // the published model list and would fail with a confusing 404/400.
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-2.5-flash'}:generateContent?key=${apiKey}`;
+      // Fallback matches the settings default. gemini-2.0-flash-lite is no
+      // longer in the published model list and would fail with a confusing
+      // 404/400; a Flash Lite model also spends far less of the free-tier
+      // daily quota (500 RPD vs 20 RPD) on what is only a connection test.
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-3.5-flash-lite'}:generateContent?key=${apiKey}`;
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

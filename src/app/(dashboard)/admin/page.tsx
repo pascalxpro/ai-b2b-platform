@@ -16,15 +16,18 @@ const AI_PROVIDERS = [
 ];
 
 // Model IDs verified against ai.google.dev/gemini-api/docs/models.
-// Preview models can require a billing-enabled (paid tier) project, so the
-// widely-available GA model is listed first as the safe fallback when
-// diagnosing key/region errors.
+// Ordered by free-tier daily quota, not by capability: optimize-search issues
+// one request per target country, so requests-per-day is the limit this app
+// actually hits first. The Flash Lite models allow 500 RPD versus 20 RPD for
+// the full Flash models — a 25x difference that matters far more here than the
+// modest quality gain. Quotas shown are free-tier figures and can change.
 const GEMINI_MODELS = [
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (相容性最佳，建議排錯時先選)' },
-  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (最經濟)' },
-  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite (經濟)' },
-  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (推薦)' },
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (最強，preview 需付費方案)' },
+  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (推薦｜免費 15/分、500/日)' },
+  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash Lite (免費 15/分、500/日)' },
+  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash (品質較佳｜免費僅 5/分、20/日)' },
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash (免費僅 5/分、20/日)' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (相容性最廣｜免費僅 5/分、20/日)' },
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro (最強｜preview，需付費方案)' },
 ];
 
 // Engine registry (must match server-side ENGINE_REGISTRY)
