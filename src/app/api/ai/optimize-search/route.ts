@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { loadSettingsFromDb } from '@/lib/settings/settingsService';
+import { requireAuth } from '@/lib/auth/guard';
 
 const COUNTRY_LANG: Record<string, { lang: string; langCode: string }> = {
   '日本': { lang: 'Japanese', langCode: 'ja' },
@@ -16,6 +17,9 @@ const COUNTRY_LANG: Record<string, { lang: string; langCode: string }> = {
 };
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { criteria, targetCountries } = await request.json();
 

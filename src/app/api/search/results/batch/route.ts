@@ -2,11 +2,14 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import type { QualityStatus, ConversionStatus } from '@prisma/client';
 import { prisma } from '@/lib/db/prisma';
+import { requireAuth } from '@/lib/auth/guard';
 
 const QUALITY_STATUSES = ['NEW', 'VALID', 'PENDING_REVIEW', 'DUPLICATE', 'INVALID'] as const;
 const CONVERSION_STATUSES = ['NONE', 'FAVORITED', 'ASSIGNED', 'CONVERTED_LEAD', 'CONVERTED_OPPORTUNITY'] as const;
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
   try {
     const body = await request.json();
     const { ids, updates } = body;

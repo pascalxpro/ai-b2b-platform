@@ -113,7 +113,7 @@ export default function AdminPage() {
             id: u.id,
             name: u.name || '未知',
             email: u.email || '',
-            role: u.workspaceMembers?.[0]?.role || '成員',
+            role: u.isAdmin ? '管理員' : (u.workspaceMembers?.[0]?.role || '成員'),
             roleClass: styles.badgeDefault,
             ws: u.workspaceMembers?.[0]?.workspace?.name || '無',
             status: u.status === 'ACTIVE' ? '啟用' : '停用',

@@ -1,8 +1,13 @@
 export const dynamic = 'force-dynamic';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
+import { requireAdmin } from '@/lib/auth/guard';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // Writes demo users and workspaces into the live database; admin-only.
+  const auth = await requireAdmin(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     console.log('Starting seed via API...')
 

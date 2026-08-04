@@ -4,8 +4,13 @@ import { loadSettingsFromDb } from '@/lib/settings/settingsService';
 import { searchWithSerper } from '@/lib/search/providers/serperProvider';
 import { searchWithExa } from '@/lib/search/providers/exaProvider';
 import { searchWithTavily } from '@/lib/search/providers/tavilyProvider';
+import { requireAdmin } from '@/lib/auth/guard';
 
 export async function GET(request: NextRequest) {
+  // Diagnostics echo provider configuration and results; admin-only.
+  const auth = await requireAdmin(request);
+  if (auth instanceof NextResponse) return auth;
+
   const query = 'Japan food packaging manufacturer';
   const results: any = { query, timestamp: new Date().toISOString(), engines: {} };
 

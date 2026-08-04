@@ -1,18 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Sparkles } from 'lucide-react';
 import styles from './login.module.css';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,9 +25,9 @@ export default function LoginPage() {
         throw new Error('請輸入電子郵件與密碼');
       }
 
-      // Ensure admin user exists
-      await fetch('/api/auth/seed');
-
+      // The previous "ensure admin exists" call to /api/auth/seed is gone: that
+      // endpoint reset the admin password to a hardcoded default on every visit
+      // to this page, and is now a guarded one-time bootstrap.
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,7 +39,10 @@ export default function LoginPage() {
         throw new Error(data.error || '登入失敗');
       }
 
-      router.push('/');
+      // Return the user to wherever the auth gate intercepted them.
+      const next = searchParams.get('next');
+      router.push(next && next.startsWith('/') ? next : '/');
+      router.refresh();
     } catch (err: any) {
       setError(err.message || '登入失敗，請稍後再試');
     } finally {
@@ -139,5 +143,14 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  // useSearchParams requires a Suspense boundary during prerender.
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

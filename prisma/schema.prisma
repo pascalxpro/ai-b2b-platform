@@ -150,6 +150,10 @@ model User {
   email          String     @unique
   passwordHash   String?    @map("password_hash")
   avatarUrl      String?    @map("avatar_url")
+  // Replaces the previous hardcoded `email === 'admin@b2b.com' || name === 'Admin'`
+  // check, where the name comparison could be claimed by registering a user
+  // called "Admin" (names are not unique).
+  isAdmin        Boolean    @default(false) @map("is_admin")
   status         UserStatus
   locale         String     @default("zh-TW")
   theme          String     @default("light")
