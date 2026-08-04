@@ -1,3 +1,4 @@
+import type { QualityStatus } from '@prisma/client';
 import { prisma } from '@/lib/db/prisma';
 import { loadSettingsFromDb } from '@/lib/settings/settingsService';
 import { searchWithTavily, SearchProviderResult } from './providers/tavilyProvider';
@@ -7,6 +8,8 @@ import { searchWithBingApi } from './providers/bingApiProvider';
 import { searchWithExa } from './providers/exaProvider';
 import { searchWithSearxng } from './providers/searxngProvider';
 import { searchWithBraveApi } from './providers/braveApiProvider';
+import { enrichCandidates, type EnrichmentResult } from './enrichment';
+import { isoToCountryLabel } from './enrichment/phone';
 
 // Re-export for other modules
 export type { SearchProviderResult } from './providers/tavilyProvider';
@@ -629,6 +632,30 @@ export async function executeSearchTask(taskId: string) {
     const allResults = Array.from(mergedMap.values());
     console.log(`[SearchService] Total merged unique results: ${allResults.length}`);
 
+    // ── Content enrichment for TLD-unverified (low-confidence) candidates ──
+    // Fetches the actual page for every 'low' item (a generic .com/.net/.org
+    // domain that only entered the pool because it wasn't excludable) and
+    // classifies it using the page's real company name, its phone numbers'
+    // country codes, and whether the URL structure looks like an article or
+    // directory rather than a business site. This is what catches "searched
+    // Japan, got a Taiwanese company" and "result is a blog post, not a
+    // company" — neither of which the TLD-only check can distinguish.
+    const lowConfidenceEntries = allResults.filter(r => r.countryConfidence === 'low');
+    let enrichmentMap = new Map<string, EnrichmentResult>();
+    if (lowConfidenceEntries.length > 0) {
+      console.log(`[SearchService] Enriching ${lowConfidenceEntries.length} TLD-unverified candidates...`);
+      try {
+        enrichmentMap = await enrichCandidates(
+          lowConfidenceEntries.map(e => e.result.website),
+          countries
+        );
+      } catch (e) {
+        // Enrichment is a precision improvement, not a required step — a
+        // failure here must not take down the whole search task.
+        console.error('[SearchService] Enrichment batch failed:', e);
+      }
+    }
+
     // Save ALL results to database
     // TLD to country name mapping for auto-detection
     const TLD_COUNTRY: Record<string, string> = {
@@ -694,29 +721,58 @@ export async function executeSearchTask(taskId: string) {
         const matchCount = queryTerms.filter((t: string) => titleSnippet.includes(t.toLowerCase())).length;
         if (matchCount > 0) score += Math.min(15, matchCount * 5);
 
-        score = Math.min(100, Math.max(20, score));
-
         // Low-confidence country matches (ambiguous .com/.net/.org that didn't hit a
         // target TLD) are kept but flagged for manual review rather than silently
         // trusted — see detectCountry() and the post-filter above.
-        const detectedCountry = detectCountry(item.website);
+        let detectedCountry = detectCountry(item.website);
+        let finalCountryConfidence: CountryConfidence = countryConfidence;
+        let finalQualityStatus: QualityStatus = countryConfidence === 'low' ? 'PENDING_REVIEW' : 'NEW';
+        let finalCompanyName = item.companyName;
+        let enrichment: EnrichmentResult | undefined;
+
+        if (countryConfidence === 'low') {
+          enrichment = enrichmentMap.get(item.website);
+          if (enrichment?.verdict === 'verified') {
+            // Phone number confirms the target country — this is the one case
+            // where it's safe to promote a generic-TLD result to 'high'.
+            finalCountryConfidence = 'high';
+            finalQualityStatus = 'NEW';
+            score += 20;
+            if (enrichment.matchedCountry) detectedCountry = enrichment.matchedCountry;
+            if (enrichment.companyName) finalCompanyName = enrichment.companyName;
+          } else if (enrichment?.verdict === 'wrong-country' || enrichment?.verdict === 'not-company') {
+            // Confirmed wrong country, or confirmed not a company at all
+            // (article/directory/wiki) — exclude from the active pool rather
+            // than leaving it to masquerade as an unreviewed candidate.
+            finalQualityStatus = 'INVALID';
+            if (enrichment.verdict === 'wrong-country' && enrichment.phoneCountries[0]) {
+              detectedCountry = isoToCountryLabel(enrichment.phoneCountries[0]);
+            }
+            if (enrichment.companyName) finalCompanyName = enrichment.companyName;
+          }
+          // 'unverified' (fetch failed, or no conclusive signal): leave
+          // exactly as the TLD-only check already decided.
+        }
+
+        score = Math.min(100, Math.max(20, score));
 
         await prisma.searchResult.create({
           data: {
             searchTaskId: taskId,
             workspaceId: task.workspaceId,
-            companyName: item.companyName,
+            companyName: finalCompanyName,
             website: item.website,
             country: detectedCountry,
             sourceCount: 1,
-            qualityStatus: countryConfidence === 'low' ? 'PENDING_REVIEW' : 'NEW',
+            qualityStatus: finalQualityStatus,
             conversionStatus: 'NONE',
             scoreJson: {
               title: item.title,
               description: item.snippet,
               provider,
               totalScore: score,
-              countryConfidence,
+              countryConfidence: finalCountryConfidence,
+              ...(enrichment ? { enrichment: { verdict: enrichment.verdict, reason: enrichment.reason } } : {}),
             },
           },
         });
