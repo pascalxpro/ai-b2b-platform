@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styles from './page.module.css';
 import { 
-  Settings, Plus, Search, Edit2, Ban, GripVertical, X,
+  Settings, Plus, Search, Edit2, Ban, Trash2, GripVertical, X,
   AlertTriangle, Globe, Monitor, Cpu, Zap, CheckCircle, XCircle,
   Eye, EyeOff, Shield
 } from 'lucide-react';
@@ -139,6 +139,24 @@ export default function AdminPage() {
       await loadUsers();
     } catch (e: any) {
       alert(`${verb}失敗：${e.message}`);
+    }
+  };
+
+  // Permanent and distinct from toggleUserStatus's 停用: this removes the row
+  // entirely rather than just marking it inactive. The API refuses when the
+  // account has created search tasks/meetings/etc. (a real FK constraint, not
+  // a bug) and reports that back so the message here explains why.
+  const deleteUser = async (user: any) => {
+    if (!confirm(`確定要永久刪除 ${user.name}（${user.email}）嗎？此動作無法復原。`)) return;
+    try {
+      const res = await fetch(`/api/users?id=${encodeURIComponent(user.id)}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      await loadUsers();
+    } catch (e: any) {
+      alert(`刪除失敗：${e.message}`);
     }
   };
 
@@ -520,6 +538,13 @@ export default function AdminPage() {
                               onClick={() => toggleUserStatus(user)}
                             >
                               <Ban size={16} />
+                            </button>
+                            <button
+                              className={`${styles.iconBtn} ${styles.danger}`}
+                              title="永久刪除"
+                              onClick={() => deleteUser(user)}
+                            >
+                              <Trash2 size={16} />
                             </button>
                           </div>
                         </td>

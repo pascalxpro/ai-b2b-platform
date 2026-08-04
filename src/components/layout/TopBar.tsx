@@ -10,7 +10,9 @@ interface TopBarProps {
   currentWorkspace: string;
   user?: {
     name: string;
+    email?: string;
     avatarUrl?: string;
+    isAdmin?: boolean;
   };
 }
 
@@ -31,6 +33,7 @@ const MOCK_SEARCH_RESULTS = [
 ];
 
 export function TopBar({ currentWorkspace, user }: TopBarProps) {
+  const [loggingOut, setLoggingOut] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -76,6 +79,20 @@ export function TopBar({ currentWorkspace, user }: TopBarProps) {
   }, [showPalette, showNotifications, showSearchResults, showQuickAdd, showUserMenu, showWorkspace]);
 
   const closeAll = () => { setShowPalette(false); setShowNotifications(false); setShowQuickAdd(false); setShowUserMenu(false); setShowWorkspace(false); };
+
+  // Previously this was a plain <Link href="/login">, which never called the
+  // logout endpoint — the session cookie stayed valid, so the account menu
+  // and the actual auth state could disagree with each other. A full
+  // navigation (not router.push) also clears any client-side state that
+  // assumed a signed-in user.
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      window.location.href = '/login';
+    }
+  };
 
   const unreadCount = notifications.filter(n => n.unread).length;
 
@@ -251,19 +268,46 @@ export function TopBar({ currentWorkspace, user }: TopBarProps) {
             )}
           </button>
           {showUserMenu && (
-            <div className={styles.paletteDropdown} style={{ minWidth: 200 }}>
-              <div className={styles.userMenuHeader}>
-                <div className={styles.avatarFallback} style={{ width: 36, height: 36, fontSize: 14 }}>{user?.name?.[0] || 'U'}</div>
-                <div>
-                  <div style={{ fontWeight: 600, color: 'var(--color-text)' }}>{user?.name || 'Admin'}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>admin@b2b-corp.com</div>
-                </div>
-              </div>
-              <div className={styles.userMenuDivider} />
-              <Link href="/admin" className={styles.quickMenuItem}>⚙️ 系統設定</Link>
-              <Link href="/admin" className={styles.quickMenuItem}>👤 個人資料</Link>
-              <div className={styles.userMenuDivider} />
-              <Link href="/login" className={styles.quickMenuItem} style={{ color: 'var(--color-danger)' }}>🚪 登出</Link>
+            <div className={styles.paletteDropdown} style={{ minWidth: 220 }}>
+              {user ? (
+                <>
+                  <div className={styles.userMenuHeader}>
+                    <div className={styles.avatarFallback} style={{ width: 36, height: 36, fontSize: 14 }}>{user.name?.[0] || 'U'}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {user.name}
+                        {user.isAdmin && (
+                          <span style={{ fontSize: '11px', fontWeight: 500, padding: '1px 6px', borderRadius: 8, background: 'var(--color-primary-subtle)', color: 'var(--color-primary)' }}>
+                            管理員
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {user.email}
+                      </div>
+                    </div>
+                  </div>
+                  <div className={styles.userMenuDivider} />
+                  {user.isAdmin && (
+                    <Link href="/admin" className={styles.quickMenuItem} onClick={() => setShowUserMenu(false)}>⚙️ 系統設定</Link>
+                  )}
+                  <div className={styles.userMenuDivider} />
+                  <button
+                    type="button"
+                    className={styles.quickMenuItem}
+                    style={{ color: 'var(--color-danger)', width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: loggingOut ? 'default' : 'pointer' }}
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                  >
+                    🚪 {loggingOut ? '登出中...' : '登出'}
+                  </button>
+                </>
+              ) : (
+                // Session check hasn't resolved yet, or the user somehow
+                // reached this page unauthenticated (proxy.ts should already
+                // have redirected them to /login before this renders).
+                <Link href="/login" className={styles.quickMenuItem}>🔑 登入</Link>
+              )}
             </div>
           )}
         </div>

@@ -13,6 +13,18 @@ export default function DashboardLayout({
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  // The account menu previously always showed a hardcoded {name:'Admin'}
+  // regardless of who was actually signed in, and its "登出" was a plain
+  // <Link> that never called the logout endpoint — the session cookie was
+  // never cleared. Both are fixed by giving TopBar the real session user.
+  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; isAdmin: boolean } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => setCurrentUser(data?.authenticated ? data.user : null))
+      .catch(() => setCurrentUser(null));
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -61,7 +73,7 @@ export default function DashboardLayout({
           overflowY: 'auto',
         }}
       >
-        <TopBar currentWorkspace="B2B Tech Corp" user={{ name: 'Admin' }} />
+        <TopBar currentWorkspace="B2B Tech Corp" user={currentUser || undefined} />
         
         <main style={{
           flex: 1,

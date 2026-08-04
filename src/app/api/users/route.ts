@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db/prisma';
 import { requireAdmin, isAdminUser } from '@/lib/auth/guard';
 import { hashPassword } from '@/lib/auth/session';
@@ -141,6 +142,57 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(user);
   } catch (error: any) {
     console.error('[API] Failed to update user:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// Permanent deletion, distinct from the existing 停用 (disable) status toggle.
+// Several tables reference User without onDelete:Cascade or SetNull —
+// SearchTask/Meeting/KnowledgeItem.createdBy and Approval.requester/approver —
+// so deleting a user who has created any of those fails at the database level
+// with a foreign-key constraint. That's treated as an expected, reportable
+// outcome (409 with a clear reason) rather than a generic 500: it means the
+// account has real history and 停用 is the correct tool, not a bug.
+export async function DELETE(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth instanceof NextResponse) return auth;
+
+  const id = request.nextUrl.searchParams.get('id');
+  if (!id) {
+    return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+  }
+  if (id === auth.id) {
+    return NextResponse.json({ error: '無法刪除自己的帳號' }, { status: 400 });
+  }
+
+  try {
+    const target = await prisma.user.findUnique({ where: { id } });
+    if (!target) {
+      return NextResponse.json({ error: '找不到使用者' }, { status: 404 });
+    }
+
+    if (isAdminUser(target)) {
+      // Counting `where: { isAdmin: true }` would undercount: the bootstrap
+      // admin (granted by matching BOOTSTRAP_ADMIN_EMAIL — see isAdminUser)
+      // can be an admin with that column still false. Evaluate the same
+      // effective rule the auth layer uses for every user instead.
+      const allUsers = await prisma.user.findMany({ select: { id: true, email: true, isAdmin: true } });
+      const effectiveAdminCount = allUsers.filter(isAdminUser).length;
+      if (effectiveAdminCount <= 1) {
+        return NextResponse.json({ error: '無法刪除唯一的管理員帳號' }, { status: 400 });
+      }
+    }
+
+    await prisma.user.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+      return NextResponse.json(
+        { error: '此使用者已建立過搜尋任務、會議記錄或其他資料，無法直接刪除，請改用「停用」' },
+        { status: 409 }
+      );
+    }
+    console.error('[API] Failed to delete user:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
