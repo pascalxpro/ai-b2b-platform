@@ -995,3 +995,63 @@
   color: var(--color-text);
   border-color: var(--color-text-muted);
 }
+
+/* ─── AI call-mode selector (server vs browser) ─── */
+.callModeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.callModeCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.callModeCard:hover { border-color: var(--color-primary); }
+
+.callModeCard strong {
+  font-size: 0.92rem;
+  color: var(--color-text);
+}
+
+.callModeCard span {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+
+.callModeCard code {
+  font-size: 0.72rem;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.callModeActive {
+  border-color: var(--color-primary);
+  background: rgba(99, 102, 241, 0.08);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.callModeHint {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  font-size: 0.79rem;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.callModeHint a { color: var(--color-primary); }

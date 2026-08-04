@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { loadSettingsFromDb } from '@/lib/settings/settingsService';
 import { requireAuth } from '@/lib/auth/guard';
+import { buildTranslatePrompt, LANG_MAP } from '@/lib/ai/prompts';
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -21,23 +22,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'AI API Key 未設定，請在系統管理中設定 Google AI API Key' }, { status: 400 });
     }
 
-    const LANG_MAP: Record<string, string> = {
-      'ja': 'Japanese', 'en': 'English', 'ko': 'Korean',
-      'vi': 'Vietnamese', 'th': 'Thai', 'de': 'German',
-      'fr': 'French', 'es': 'Spanish', 'it': 'Italian',
-      'pt': 'Portuguese', 'id': 'Indonesian', 'ms': 'Malay',
-      'zh-TW': 'Traditional Chinese', 'zh-CN': 'Simplified Chinese',
-    };
-
+    // Shared with the browser-side path so both modes send an identical prompt.
     const langName = LANG_MAP[targetLang] || targetLang;
-
-    const prompt = `You are a professional B2B business translator. Translate the following search query into ${langName}. 
-The text describes a business search intent for finding companies/suppliers/distributors.
-Keep it natural and use industry-standard terminology in the target language.
-Only output the translated text, nothing else.
-
-Text to translate:
-${text}`;
+    const prompt = buildTranslatePrompt(text, targetLang);
 
     let translatedText = '';
 

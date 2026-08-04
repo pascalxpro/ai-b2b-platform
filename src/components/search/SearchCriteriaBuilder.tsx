@@ -4,6 +4,10 @@ import React, { useState, useEffect, KeyboardEvent } from 'react';
 import { X, Check, Languages, ArrowDown, Loader2, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Portal from '@/components/ui/Portal';
+import BrowserKeyModal from '@/components/ai/BrowserKeyModal';
+import { callGemini, DEFAULT_GEMINI_MODEL } from '@/lib/ai/gemini';
+import { getBrowserGeminiKey } from '@/lib/ai/browserKey';
+import { buildTranslatePrompt, buildOptimizePrompt, parseOptimizeResponse } from '@/lib/ai/prompts';
 import styles from './SearchCriteriaBuilder.module.css';
 
 // Simple inline TagInput since we need it self-contained
@@ -99,6 +103,32 @@ export default function SearchCriteriaBuilder({
   const [isTranslating, setIsTranslating] = useState(false);
   const [translateError, setTranslateError] = useState('');
 
+  // Which side makes the Gemini call. In 'browser' mode the request goes out
+  // from the user's own network with their own key, because Google rejects the
+  // server's datacenter IP.
+  const [aiCallMode, setAiCallMode] = useState<'server' | 'browser'>('server');
+  const [aiModel, setAiModel] = useState(DEFAULT_GEMINI_MODEL);
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [hasBrowserKey, setHasBrowserKey] = useState(false);
+
+  useEffect(() => {
+    // Both updates run inside the promise chain: localStorage is only readable
+    // after hydration, and setting state synchronously in an effect body would
+    // trigger an extra render pass before the config has even arrived.
+    fetch('/api/ai/config')
+      .then(r => (r.ok ? r.json() : null))
+      .then(cfg => {
+        if (cfg?.aiCallMode) setAiCallMode(cfg.aiCallMode);
+        if (cfg?.aiModel) setAiModel(cfg.aiModel);
+      })
+      .catch(() => { /* fall back to server mode */ })
+      .finally(() => setHasBrowserKey(Boolean(getBrowserGeminiKey())));
+  }, []);
+
+  const browserMode = aiCallMode === 'browser';
+  // In browser mode the user must supply their own key before AI can run.
+  const needsOwnKey = browserMode && !hasBrowserKey;
+
   const TRANSLATE_LANGS = [
     { code: 'ja', name: '日文', flag: '🇯🇵' },
     { code: 'en', name: '英文', flag: '🇺🇸' },
@@ -114,20 +144,33 @@ export default function SearchCriteriaBuilder({
 
   const handleTranslate = async () => {
     if (!translateInput.trim()) return;
+    if (needsOwnKey) { setShowKeyModal(true); return; }
+
     setIsTranslating(true);
     setTranslateError('');
     setTranslateResult('');
     try {
-      const res = await fetch('/api/ai/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: translateInput, targetLang: translateLang }),
-      });
-      const data = await res.json();
-      if (res.ok && data.translatedText) {
-        setTranslateResult(data.translatedText);
+      if (browserMode) {
+        // Same prompt builder the server route uses, so both modes behave alike.
+        const text = await callGemini(
+          getBrowserGeminiKey(),
+          aiModel,
+          buildTranslatePrompt(translateInput, translateLang),
+          { temperature: 0.3, maxOutputTokens: 500 }
+        );
+        setTranslateResult(text);
       } else {
-        setTranslateError(data.error || '翻譯失敗');
+        const res = await fetch('/api/ai/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: translateInput, targetLang: translateLang }),
+        });
+        const data = await res.json();
+        if (res.ok && data.translatedText) {
+          setTranslateResult(data.translatedText);
+        } else {
+          setTranslateError(data.error || '翻譯失敗');
+        }
       }
     } catch (e: any) {
       setTranslateError(e.message);
@@ -279,24 +322,56 @@ export default function SearchCriteriaBuilder({
   const handleSubmit = async () => {
     // If countries selected, optimize first
     if (countries.length > 0) {
+      if (needsOwnKey) { setShowKeyModal(true); return; }
+
       setIsOptimizing(true);
       setOptimizeError('');
       setShowPreview(true);
       try {
-        const res = await fetch('/api/ai/optimize-search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            criteria: { queryText: description, countries, industries, companyTypes, keywords },
-            targetCountries: countries,
-          }),
-        });
-        const data = await res.json();
-        if (res.ok && data.optimized) {
-          setOptimizedData(data.optimized);
-          setPreviewTab(countries[0]);
+        if (browserMode) {
+          const key = getBrowserGeminiKey();
+          const criteria = { queryText: description, industries, companyTypes, keywords };
+          const collected: Record<string, OptimizedData> = {};
+          let lastError = '';
+
+          // One request per country, mirroring the server route. Sequential on
+          // purpose: the free tier allows 15 requests/minute, and firing a
+          // whole multi-country batch in parallel invites a 429.
+          for (const country of countries) {
+            try {
+              const raw = await callGemini(key, aiModel, buildOptimizePrompt(criteria, country), {
+                temperature: 0.4,
+                maxOutputTokens: 1500,
+              });
+              collected[country] = parseOptimizeResponse(raw, country);
+            } catch (e: any) {
+              console.error(`[AI] Optimize failed for ${country}:`, e);
+              lastError = e.message || String(e);
+            }
+          }
+
+          if (Object.keys(collected).length === 0) {
+            setOptimizeError(lastError || 'AI 優化失敗：未取得任何結果');
+          } else {
+            setOptimizedData(collected);
+            setPreviewTab(Object.keys(collected)[0]);
+          }
         } else {
-          setOptimizeError(data.error || '優化失敗');
+          const res = await fetch('/api/ai/optimize-search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              criteria: { queryText: description, countries, industries, companyTypes, keywords },
+              targetCountries: countries,
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.optimized) {
+            setOptimizedData(data.optimized);
+            setPreviewTab(countries[0]);
+          } else {
+            setOptimizeError(data.error || '優化失敗');
+          }
         }
       } catch (e: any) {
         setOptimizeError(e.message);
@@ -473,6 +548,21 @@ export default function SearchCriteriaBuilder({
         {/* Natural Language Description + AI Translation */}
         <div className={styles.section}>
           <h3 className={styles.sectionTitle}>自然語言描述</h3>
+
+          {/* In browser mode the AI runs on the user's own key, so surface its
+              state here rather than letting the action fail with a vague error. */}
+          {browserMode && (
+            <div className={hasBrowserKey ? styles.keyBarOk : styles.keyBarWarn}>
+              <span>
+                {hasBrowserKey
+                  ? '🔑 AI 使用您自己的 Gemini 金鑰（存在本機瀏覽器）'
+                  : '⚠️ AI 功能需要您自己的 Gemini 金鑰，請先設定'}
+              </span>
+              <button type="button" className={styles.keyBarBtn} onClick={() => setShowKeyModal(true)}>
+                {hasBrowserKey ? '管理金鑰' : '設定金鑰'}
+              </button>
+            </div>
+          )}
 
           {/* AI Translation inline helper — FIRST: input Chinese here */}
           <div className={styles.translateBlock}>
@@ -805,6 +895,14 @@ export default function SearchCriteriaBuilder({
             )}
           </div>
         </div>
+      )}
+
+      {showKeyModal && (
+        <BrowserKeyModal
+          model={aiModel}
+          onClose={() => setShowKeyModal(false)}
+          onSaved={() => setHasBrowserKey(Boolean(getBrowserGeminiKey()))}
+        />
       )}
     </div>
     </Portal>

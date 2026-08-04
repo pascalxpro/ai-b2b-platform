@@ -2,19 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { loadSettingsFromDb } from '@/lib/settings/settingsService';
 import { requireAuth } from '@/lib/auth/guard';
-
-const COUNTRY_LANG: Record<string, { lang: string; langCode: string }> = {
-  '日本': { lang: 'Japanese', langCode: 'ja' },
-  '台灣': { lang: 'Traditional Chinese', langCode: 'zh-TW' },
-  '美國': { lang: 'English', langCode: 'en' },
-  '韓國': { lang: 'Korean', langCode: 'ko' },
-  '越南': { lang: 'Vietnamese', langCode: 'vi' },
-  '泰國': { lang: 'Thai', langCode: 'th' },
-  '德國': { lang: 'German', langCode: 'de' },
-  '法國': { lang: 'French', langCode: 'fr' },
-  '印尼': { lang: 'Indonesian', langCode: 'id' },
-  '馬來西亞': { lang: 'Malay', langCode: 'ms' },
-};
+import { buildOptimizePrompt, parseOptimizeResponse } from '@/lib/ai/prompts';
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(request);
@@ -41,30 +29,8 @@ export async function POST(request: NextRequest) {
     let lastError = '';
 
     for (const country of targetCountries) {
-      const countryInfo = COUNTRY_LANG[country] || { lang: country, langCode: 'unknown' };
-      const langName = countryInfo.lang;
-
-      const prompt = `You are a B2B search optimization expert. Given search criteria in Chinese, optimize and transform them into ${langName} for maximum search engine effectiveness.
-
-IMPORTANT: Do NOT just translate literally. You must:
-1. Convert the description into search-engine-friendly keyword combinations
-2. Add common synonyms and local industry terms used in ${country}
-3. Use terminology that businesses in ${country} actually use
-4. Expand keywords to improve search coverage
-
-Input criteria (Chinese):
-- Description: ${queryText}
-- Industries: ${industries.join(', ')}
-- Company Types: ${companyTypes.join(', ')}
-- Keywords: ${keywords.join(', ')}
-
-Return ONLY a valid JSON object (no markdown, no code fences):
-{
-  "description": "optimized search query string",
-  "industries": ["optimized industry 1", "optimized industry 2"],
-  "companyTypes": ["optimized type 1", "optimized type 2"],
-  "keywords": ["keyword1", "keyword2", "keyword3"]
-}`;
+      // Shared with the browser-side path so both modes send an identical prompt.
+      const prompt = buildOptimizePrompt({ queryText, industries, companyTypes, keywords }, country);
 
       let aiResponseText = '';
 
@@ -143,16 +109,7 @@ Return ONLY a valid JSON object (no markdown, no code fences):
 
       if (aiResponseText) {
         try {
-          // Extract JSON in case AI added markdown formatting like ```json ... ```
-          const jsonMatch = aiResponseText.match(/\{[\s\S]*\}/);
-          const jsonStr = jsonMatch ? jsonMatch[0] : aiResponseText;
-          const parsed = JSON.parse(jsonStr);
-
-          optimized[country] = {
-            ...parsed,
-            langCode: countryInfo.langCode,
-            langName: countryInfo.lang
-          };
+          optimized[country] = parseOptimizeResponse(aiResponseText, country);
         } catch (err) {
           console.error(`[AI Optimize Search] JSON parsing error for ${country}:`, err, '\\nResponse:', aiResponseText);
         }

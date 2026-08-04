@@ -170,6 +170,7 @@ export default function AdminPage() {
   const [aiApiKey, setAiApiKey] = useState('');
   const [aiModel, setAiModel] = useState('gemini-3.5-flash-lite');
   const [aiBaseUrl, setAiBaseUrl] = useState('');
+  const [aiCallMode, setAiCallMode] = useState<'server' | 'browser'>('server');
   const [aiTestResult, setAiTestResult] = useState<{success: boolean; message: string} | null>(null);
   const [aiTesting, setAiTesting] = useState(false);
   const [aiSaving, setAiSaving] = useState(false);
@@ -196,6 +197,7 @@ export default function AdminPage() {
           if (data.aiApiKey) setAiApiKey(data.aiApiKey);
           if (data.aiModel) setAiModel(data.aiModel);
           if (data.aiBaseUrl) setAiBaseUrl(data.aiBaseUrl);
+          if (data.aiCallMode) setAiCallMode(data.aiCallMode);
           
           if (Array.isArray(data.searchEngines) && data.searchEngines.length > 0) {
             // Use saved order
@@ -354,7 +356,7 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ aiProvider, aiApiKey, aiModel, aiBaseUrl }),
+        body: JSON.stringify({ aiProvider, aiApiKey, aiModel, aiBaseUrl, aiCallMode }),
       });
       if (res.ok) {
         setSaveSuccessMessage('✅ AI 設定已成功儲存！');
@@ -723,6 +725,37 @@ export default function AdminPage() {
                   })}
                 </div>
               </div>
+
+              {/* Where the Gemini request originates from */}
+              {aiProvider === 'gemini' && (
+                <div style={{ marginTop: 20 }}>
+                  <div className={styles.label} style={{ marginBottom: 8 }}>呼叫來源</div>
+                  <div className={styles.callModeGrid}>
+                    <button
+                      className={`${styles.callModeCard} ${aiCallMode === 'server' ? styles.callModeActive : ''}`}
+                      onClick={() => { setAiCallMode('server'); setAiTestResult(null); }}
+                    >
+                      <strong>伺服端呼叫</strong>
+                      <span>由伺服器統一使用上方金鑰。若主機 IP 被 Google 判定為機房位址，會出現 <code>User location is not supported</code>。</span>
+                    </button>
+                    <button
+                      className={`${styles.callModeCard} ${aiCallMode === 'browser' ? styles.callModeActive : ''}`}
+                      onClick={() => { setAiCallMode('browser'); setAiTestResult(null); }}
+                    >
+                      <strong>瀏覽端呼叫</strong>
+                      <span>由每位使用者的瀏覽器以<strong>自己的金鑰</strong>呼叫，金鑰只存在各自電腦，額度也各自獨立（每日 500 次）。</span>
+                    </button>
+                  </div>
+                  {aiCallMode === 'browser' && (
+                    <div className={styles.callModeHint}>
+                      ℹ️ 切換為瀏覽端後，上方的伺服器金鑰不會再用於翻譯與搜尋詞優化。
+                      每位使用者需在「建立搜尋任務」視窗中設定自己的金鑰
+                      （<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">免費申請</a>）。
+                      伺服器金鑰仍保留供日後切換回伺服端使用。
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* API Key */}
               {aiProvider === 'gemini' && (

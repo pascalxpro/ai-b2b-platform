@@ -19,6 +19,14 @@ export interface SystemSettings {
   aiApiKey: string;
   aiModel: string;
   aiBaseUrl?: string; // For Ollama / LM Studio custom endpoint
+  /**
+   * Where the Gemini call is made from.
+   *  'server'  — the container calls Google. Blocked when the host's IP is
+   *              classified as a datacenter address.
+   *  'browser' — each user's browser calls Google with their own key, held in
+   *              their localStorage and never sent to us.
+   */
+  aiCallMode: 'server' | 'browser';
 }
 
 // ─── Default Engine Registry ───
@@ -72,6 +80,7 @@ function getDefaultSettings(): SystemSettings {
     aiApiKey: process.env.GOOGLE_AI_API_KEY || '',
     aiModel: 'gemini-3.5-flash-lite',
     aiBaseUrl: '',
+    aiCallMode: 'server',
   };
 }
 
