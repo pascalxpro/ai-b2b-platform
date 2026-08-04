@@ -1,4 +1,8 @@
 import { prisma } from '@/lib/db/prisma';
+import { DEFAULT_BRANDING, MAX_LOGO_DATA_URL_LENGTH, type BrandingSettings } from './branding';
+
+export type { BrandingSettings } from './branding';
+export { DEFAULT_BRANDING, MAX_LOGO_DATA_URL_LENGTH } from './branding';
 
 // ─── Search Engine Configuration ───
 export interface SearchEngineConfig {
@@ -27,6 +31,7 @@ export interface SystemSettings {
    *              their localStorage and never sent to us.
    */
   aiCallMode: 'server' | 'browser';
+  branding: BrandingSettings;
 }
 
 // ─── Default Engine Registry ───
@@ -81,6 +86,7 @@ function getDefaultSettings(): SystemSettings {
     aiModel: 'gemini-3.5-flash-lite',
     aiBaseUrl: '',
     aiCallMode: 'server',
+    branding: DEFAULT_BRANDING,
   };
 }
 
@@ -153,6 +159,10 @@ export async function loadSettingsFromDb(): Promise<SystemSettings> {
         ...getDefaultSettings(),
         ...parsed,
         searchEngines: engines,
+        // Shallow `...parsed` would drop new BrandingSettings fields for any
+        // row saved before they existed (parsed.branding would replace the
+        // whole default object instead of filling in just what's missing).
+        branding: { ...DEFAULT_BRANDING, ...(parsed.branding || {}) },
       };
       console.log('[Settings] Loaded from database');
       return inMemorySettings!;
@@ -176,6 +186,24 @@ export async function updateSystemSettings(newSettings: Partial<SystemSettings>)
     ...current,
     ...newSettings,
   };
+
+  // Same reasoning as loadSettingsFromDb: a shallow spread would let a caller
+  // that only means to change one branding field (e.g. just the logo) wipe
+  // out the rest of the object.
+  if (newSettings.branding) {
+    updated.branding = { ...current.branding, ...newSettings.branding };
+
+    // Defense in depth against a corrupt/oversized upload: the client caps
+    // and compresses the image before sending, but the server must not trust
+    // that — this is the same field a malicious or buggy caller would use to
+    // bloat the settings row indefinitely.
+    if (updated.branding.logoDataUrl && updated.branding.logoDataUrl.length > MAX_LOGO_DATA_URL_LENGTH) {
+      throw new Error(`Logo 圖片過大（上限約 ${Math.round(MAX_LOGO_DATA_URL_LENGTH / 1000)}KB），請使用較小的圖片`);
+    }
+    if (updated.branding.logoDataUrl && !/^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/.test(updated.branding.logoDataUrl)) {
+      throw new Error('Logo 格式不正確，請重新上傳圖片');
+    }
+  }
 
   // Sync legacy tavilyApiKeys with searchEngines
   if (newSettings.searchEngines) {

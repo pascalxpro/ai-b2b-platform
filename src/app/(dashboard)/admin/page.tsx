@@ -10,6 +10,7 @@ import {
 import { useRouter } from 'next/navigation';
 import Portal from '@/components/ui/Portal';
 import { GEMINI_MODELS, modelLabel } from '@/lib/ai/models';
+import { DEFAULT_BRANDING, MAX_LOGO_DATA_URL_LENGTH, type BrandingSettings } from '@/lib/settings/branding';
 
 const AI_PROVIDERS = [
   { id: 'gemini' as const, name: 'Google Gemini', desc: '雲端 AI，需要 API Key', icon: Globe },
@@ -170,6 +171,8 @@ export default function AdminPage() {
   const [engines, setEngines] = useState<EngineState[]>([]);
   const [maxSearchLimit, setMaxSearchLimit] = useState(50);
   const [defaultTargetCount, setDefaultTargetCount] = useState(100);
+  const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING);
+  const [logoUploadError, setLogoUploadError] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState('');
 
@@ -206,7 +209,8 @@ export default function AdminPage() {
           if (data.aiModel) setAiModel(data.aiModel);
           if (data.aiBaseUrl) setAiBaseUrl(data.aiBaseUrl);
           if (data.aiCallMode) setAiCallMode(data.aiCallMode);
-          
+          if (data.branding) setBranding({ ...DEFAULT_BRANDING, ...data.branding });
+
           if (Array.isArray(data.searchEngines) && data.searchEngines.length > 0) {
             // Use saved order
             const engList: EngineState[] = data.searchEngines.map((e: any) => ({
@@ -299,6 +303,58 @@ export default function AdminPage() {
     setDragOverIdx(null);
   };
 
+  // Resizes the uploaded image client-side before it ever becomes a data URL.
+  // Without this, a user uploading a straight-off-the-camera photo as a
+  // "logo" would blow well past MAX_LOGO_DATA_URL_LENGTH and bloat the
+  // settings row. Capping at 240px (well above anything the sidebar actually
+  // renders it at) keeps the stored size small while preserving the source
+  // image's aspect ratio — width and height are scaled by the same factor,
+  // never cropped or stretched.
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file next time
+    if (!file) return;
+
+    setLogoUploadError('');
+    if (!file.type.startsWith('image/')) {
+      setLogoUploadError('請上傳圖片檔案');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setLogoUploadError('圖片檔案過大（上限 8MB），請先壓縮再上傳');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 240;
+        const scale = Math.min(1, MAX_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.naturalWidth * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setLogoUploadError('瀏覽器不支援圖片處理');
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/png');
+
+        if (dataUrl.length > MAX_LOGO_DATA_URL_LENGTH) {
+          setLogoUploadError('圖片處理後仍然過大，請使用更簡單／更小尺寸的圖片');
+          return;
+        }
+        setBranding(prev => ({ ...prev, logoDataUrl: dataUrl }));
+      };
+      img.onerror = () => setLogoUploadError('無法讀取這張圖片');
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => setLogoUploadError('無法讀取檔案');
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     setSaveSuccessMessage('');
@@ -315,6 +371,7 @@ export default function AdminPage() {
           })),
           maxSearchLimit,
           defaultTargetCount,
+          branding,
         })
       });
 
@@ -920,8 +977,166 @@ export default function AdminPage() {
                     type="number" 
                     className={styles.inputField} 
                     value={defaultTargetCount}
-                    onChange={e => setDefaultTargetCount(Number(e.target.value))} 
+                    onChange={e => setDefaultTargetCount(Number(e.target.value))}
                   />
+                </div>
+              </div>
+            </div>
+
+            <div className={`${styles.settingsCard} glass-2`}>
+              <h3 className={styles.settingsTitle}>品牌設定</h3>
+              <div className={styles.formGroup}>
+                {/* Logo */}
+                <div className={styles.formRow} style={{ alignItems: 'flex-start' }}>
+                  <div>
+                    <div className={styles.label}>Logo 圖片</div>
+                    <div className={styles.desc}>上傳後依原圖比例縮放，不會被裁切變形；未上傳時使用預設的漸層圖示</div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      {branding.logoDataUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- data: URL preview, see Sidebar
+                        <img src={branding.logoDataUrl} alt="Logo 預覽" style={{ height: 40, width: 'auto', maxWidth: 160, objectFit: 'contain' }} />
+                      ) : (
+                        <div style={{ width: 40, height: 40, borderRadius: 8, background: 'linear-gradient(135deg, hsl(var(--hue-primary),80%,55%), hsl(var(--hue-accent),80%,50%))' }} />
+                      )}
+                      <label className={styles.aiTestBtn} style={{ padding: '8px 14px', fontSize: '0.85rem' }}>
+                        上傳圖片
+                        <input type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
+                      </label>
+                      {branding.logoDataUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setBranding(prev => ({ ...prev, logoDataUrl: '' }))}
+                          style={{ background: 'none', border: 'none', color: 'var(--color-danger)', cursor: 'pointer', fontSize: '0.82rem' }}
+                        >
+                          移除
+                        </button>
+                      )}
+                    </div>
+                    {logoUploadError && <div style={{ color: 'var(--color-danger)', fontSize: '0.78rem' }}>{logoUploadError}</div>}
+                  </div>
+                </div>
+
+                <div className={styles.formRow}>
+                  <div>
+                    <div className={styles.label}>Logo 高度</div>
+                    <div className={styles.desc}>寬度依比例自動調整</div>
+                  </div>
+                  <input
+                    type="number"
+                    className={styles.inputField}
+                    min={20}
+                    max={64}
+                    value={branding.logoHeight}
+                    onChange={e => setBranding(prev => ({ ...prev, logoHeight: Math.min(64, Math.max(20, Number(e.target.value) || 36)) }))}
+                  />
+                </div>
+
+                <div style={{ height: 1, background: 'var(--color-border-subtle)', margin: '4px 0' }} />
+
+                {/* Line 1: brand name */}
+                <div className={styles.formRow}>
+                  <div>
+                    <div className={styles.label}>第一行文字</div>
+                    <div className={styles.desc}>品牌名稱</div>
+                  </div>
+                  <input
+                    type="text"
+                    className={styles.inputField}
+                    value={branding.brandName}
+                    onChange={e => setBranding(prev => ({ ...prev, brandName: e.target.value }))}
+                    maxLength={30}
+                  />
+                </div>
+                <div className={styles.formRow}>
+                  <div><div className={styles.label}>第一行文字大小</div></div>
+                  <input
+                    type="number"
+                    className={styles.inputField}
+                    min={10}
+                    max={32}
+                    value={branding.brandNameSize}
+                    onChange={e => setBranding(prev => ({ ...prev, brandNameSize: Math.min(32, Math.max(10, Number(e.target.value) || 17)) }))}
+                  />
+                </div>
+                <div className={styles.formRow}>
+                  <div><div className={styles.label}>第一行文字顏色</div></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="color"
+                      value={branding.brandNameColor || '#ffffff'}
+                      onChange={e => setBranding(prev => ({ ...prev, brandNameColor: e.target.value }))}
+                      style={{ width: 40, height: 32, padding: 0, border: '1px solid var(--color-border)', borderRadius: 6, cursor: 'pointer', background: 'none' }}
+                    />
+                    {branding.brandNameColor && (
+                      <button type="button" onClick={() => setBranding(prev => ({ ...prev, brandNameColor: '' }))} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.78rem' }}>
+                        恢復預設
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ height: 1, background: 'var(--color-border-subtle)', margin: '4px 0' }} />
+
+                {/* Line 2: subtitle */}
+                <div className={styles.formRow}>
+                  <div>
+                    <div className={styles.label}>第二行文字</div>
+                    <div className={styles.desc}>副標題</div>
+                  </div>
+                  <input
+                    type="text"
+                    className={styles.inputField}
+                    value={branding.subtitle}
+                    onChange={e => setBranding(prev => ({ ...prev, subtitle: e.target.value }))}
+                    maxLength={30}
+                  />
+                </div>
+                <div className={styles.formRow}>
+                  <div><div className={styles.label}>第二行文字大小</div></div>
+                  <input
+                    type="number"
+                    className={styles.inputField}
+                    min={8}
+                    max={24}
+                    value={branding.subtitleSize}
+                    onChange={e => setBranding(prev => ({ ...prev, subtitleSize: Math.min(24, Math.max(8, Number(e.target.value) || 12)) }))}
+                  />
+                </div>
+                <div className={styles.formRow}>
+                  <div><div className={styles.label}>第二行文字顏色</div></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="color"
+                      value={branding.subtitleColor || '#94a3b8'}
+                      onChange={e => setBranding(prev => ({ ...prev, subtitleColor: e.target.value }))}
+                      style={{ width: 40, height: 32, padding: 0, border: '1px solid var(--color-border)', borderRadius: 6, cursor: 'pointer', background: 'none' }}
+                    />
+                    {branding.subtitleColor && (
+                      <button type="button" onClick={() => setBranding(prev => ({ ...prev, subtitleColor: '' }))} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', fontSize: '0.78rem' }}>
+                        恢復預設
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Live preview, styled like the actual sidebar header */}
+                <div style={{ marginTop: 8, padding: '14px 16px', borderRadius: 10, background: '#1a1a2e', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {branding.logoDataUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- data: URL preview, see Sidebar
+                    <img src={branding.logoDataUrl} alt="" style={{ height: branding.logoHeight, width: 'auto', maxWidth: 160, objectFit: 'contain', flexShrink: 0 }} />
+                  ) : (
+                    <div style={{ width: branding.logoHeight, height: branding.logoHeight, borderRadius: 8, flexShrink: 0, background: 'linear-gradient(135deg, hsl(var(--hue-primary),80%,55%), hsl(var(--hue-accent),80%,50%))' }} />
+                  )}
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: branding.brandNameSize, color: branding.brandNameColor || '#ffffff', lineHeight: 1.2 }}>
+                      {branding.brandName || 'AI B2B'}
+                    </div>
+                    <div style={{ fontSize: branding.subtitleSize, color: branding.subtitleColor || '#94a3b8' }}>
+                      {branding.subtitle || '商業情報平台'}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

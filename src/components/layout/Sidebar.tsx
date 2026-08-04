@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -8,6 +8,7 @@ import {
   CheckSquare, Mic, BookOpen, Bot, Target, BarChart3,
   Settings, ChevronRight, ChevronLeft
 } from 'lucide-react';
+import { DEFAULT_BRANDING, type BrandingSettings } from '@/lib/settings/branding';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -33,7 +34,15 @@ const NAV_ITEMS = [
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
-  
+  const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING);
+
+  useEffect(() => {
+    fetch('/api/branding')
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (data) setBranding({ ...DEFAULT_BRANDING, ...data }); })
+      .catch(() => { /* keep the built-in default on failure */ });
+  }, []);
+
   const getActiveId = () => {
     if (pathname === '/') return 'search';
     const match = NAV_ITEMS.find(item => item.href !== '/' && pathname.startsWith(item.href));
@@ -46,11 +55,44 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ''}`}>
       <div className={styles.header}>
         <div className={styles.logo}>
-          <div className={styles.logoIcon}></div>
+          {branding.logoDataUrl ? (
+            // Only `height` is set — `width: auto` (in CSS) lets the browser
+            // preserve whatever aspect ratio the uploaded image actually has,
+            // instead of forcing it into the old fixed 36x36 square.
+            // Plain <img>, not next/image: next/image cannot optimize a data:
+            // URL (it would need `unoptimized`, gaining nothing for a ~36px
+            // inline logo) and wants fixed dimensions, which is precisely what
+            // we're avoiding here.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={branding.logoDataUrl}
+              alt={branding.brandName}
+              className={styles.logoImg}
+              style={{ height: branding.logoHeight }}
+            />
+          ) : (
+            <div className={styles.logoIcon} style={{ width: branding.logoHeight, height: branding.logoHeight }} />
+          )}
           {!collapsed && (
             <div className={styles.brand}>
-              <div className={styles.brandName}>AI B2B</div>
-              <div className={styles.subtitle}>商業情報平台</div>
+              <div
+                className={styles.brandName}
+                style={{
+                  fontSize: branding.brandNameSize,
+                  ...(branding.brandNameColor ? { color: branding.brandNameColor } : {}),
+                }}
+              >
+                {branding.brandName}
+              </div>
+              <div
+                className={styles.subtitle}
+                style={{
+                  fontSize: branding.subtitleSize,
+                  ...(branding.subtitleColor ? { color: branding.subtitleColor } : {}),
+                }}
+              >
+                {branding.subtitle}
+              </div>
             </div>
           )}
         </div>

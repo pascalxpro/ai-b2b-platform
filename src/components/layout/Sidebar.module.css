@@ -80,6 +80,17 @@
   border-radius: inherit;
 }
 
+/* Uploaded logo: only `height` is ever set inline (from admin settings),
+   width:auto is what actually preserves the source image's own aspect ratio
+   instead of forcing it into the old fixed 36x36 square. */
+.logoImg {
+  width: auto;
+  max-width: 160px;
+  flex-shrink: 0;
+  object-fit: contain;
+  display: block;
+}
+
 .brand {
   display: flex;
   flex-direction: column;
