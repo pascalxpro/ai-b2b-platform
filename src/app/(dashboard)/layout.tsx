@@ -22,7 +22,21 @@ export default function DashboardLayout({
   useEffect(() => {
     fetch('/api/auth/me')
       .then(r => (r.ok ? r.json() : null))
-      .then(data => setCurrentUser(data?.authenticated ? data.user : null))
+      .then(data => {
+        if (data?.authenticated) {
+          setCurrentUser(data.user);
+          return;
+        }
+        // proxy.ts only checks that a session cookie EXISTS, not that it is
+        // valid — a deliberately cheap edge check. So a stale or wrongly
+        // signed cookie still gets the shell rendered, while every API call
+        // 401s: the avatar falls back to "U", branding reverts to defaults and
+        // every counter shows 0, which reads as "the app is broken" rather
+        // than "you are signed out". Send them to the login page instead.
+        // (A common trigger is SESSION_SECRET being unset on the host, which
+        // regenerates on each restart and invalidates all existing cookies.)
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
+      })
       .catch(() => setCurrentUser(null));
   }, []);
 

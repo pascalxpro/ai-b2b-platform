@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Sparkles } from 'lucide-react';
 import styles from './login.module.css';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { DEFAULT_BRANDING, type BrandingSettings } from '@/lib/settings/branding';
 
 /*
  * Inlined rather than loaded from svgrepo.com. The external images failed to
@@ -41,6 +42,16 @@ function LoginForm() {
   const [error, setError] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
+  // The logo and both text lines were hardcoded here, so a customised install
+  // still showed the stock "AI B2B" branding on its own login screen.
+  const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING);
+
+  useEffect(() => {
+    fetch('/api/branding')
+      .then(r => (r.ok ? r.json() : null))
+      .then(b => { if (b) setBranding({ ...DEFAULT_BRANDING, ...b }); })
+      .catch(() => { /* cosmetic only — keep the defaults */ });
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,11 +92,22 @@ function LoginForm() {
     <div className={styles.container}>
       <div className={`glass-2 ${styles.loginCard}`}>
         <div className={styles.header}>
-          <div className={styles.logoWrapper}>
-            <Sparkles className={styles.logoIcon} size={28} />
-          </div>
-          <h1 className={styles.title}>AI B2B</h1>
-          <p className={styles.subtitle}>商業情報平台</p>
+          {branding.logoDataUrl ? (
+            // height only, width auto — preserves the uploaded image's own
+            // aspect ratio, same rule as the sidebar.
+            <img
+              src={branding.logoDataUrl}
+              alt={branding.brandName}
+              className={styles.logoImage}
+              style={{ height: Math.max(44, branding.logoHeight) }}
+            />
+          ) : (
+            <div className={styles.logoWrapper}>
+              <Sparkles className={styles.logoIcon} size={28} />
+            </div>
+          )}
+          <h1 className={styles.title}>{branding.brandName}</h1>
+          <p className={styles.subtitle}>{branding.subtitle}</p>
         </div>
 
         {error && (

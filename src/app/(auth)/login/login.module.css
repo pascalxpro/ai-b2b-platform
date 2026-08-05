@@ -49,6 +49,16 @@
   color: #fff;
 }
 
+/* Uploaded logo replaces the gradient tile. width:auto keeps the source
+   image's aspect ratio instead of squashing it into the tile's square. */
+.logoImage {
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+  margin-bottom: var(--space-4);
+  display: block;
+}
+
 .title {
   font-size: 1.75rem;
   font-weight: var(--fw-bold);

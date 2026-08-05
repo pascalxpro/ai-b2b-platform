@@ -1,21 +1,27 @@
 export const dynamic = 'force-dynamic';
-import { NextRequest, NextResponse } from 'next/server';
-import { loadSettingsFromDb } from '@/lib/settings/settingsService';
-import { requireAuth } from '@/lib/auth/guard';
+import { NextResponse } from 'next/server';
+import { loadSettingsFromDb, DEFAULT_BRANDING } from '@/lib/settings/settingsService';
 
 /**
- * Branding only, for the sidebar — every signed-in user needs this, not just
- * admins. /api/admin/settings also carries every third-party API key in
- * plaintext and is admin-only, so the sidebar must not call it.
+ * Sidebar/login branding. Deliberately **public** — no auth.
+ *
+ * It carries only the company logo, name, subtitle and their sizes/colours,
+ * all of which are on display to anyone who reaches the login page anyway.
+ * Requiring auth here meant the branding silently fell back to the built-in
+ * "AI B2B" default whenever the session wasn't valid yet, so a customised
+ * install still showed stock branding on the login screen and during the
+ * moment before the session resolved.
+ *
+ * Note this must NOT start returning anything from the wider settings object:
+ * /api/admin/settings stays admin-only because it exposes every API key.
  */
-export async function GET(request: NextRequest) {
-  const auth = await requireAuth(request);
-  if (auth instanceof NextResponse) return auth;
-
+export async function GET() {
   try {
     const settings = await loadSettingsFromDb();
-    return NextResponse.json(settings.branding);
+    return NextResponse.json(settings.branding || DEFAULT_BRANDING);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // Branding is cosmetic — never fail the page over it.
+    console.error('[branding] Falling back to defaults:', error);
+    return NextResponse.json(DEFAULT_BRANDING);
   }
 }
