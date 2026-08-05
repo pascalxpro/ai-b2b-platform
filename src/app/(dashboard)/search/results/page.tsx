@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Eye, Edit2, Save, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Eye, Edit2, Save, X, Undo2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import ResultsToolbar from '@/components/search/ResultsToolbar';
 import BatchActionBar from '@/components/search/BatchActionBar';
 import ResultDetailDrawer from '@/components/search/ResultDetailDrawer';
@@ -330,13 +330,20 @@ function SearchResultsContent() {
    * state: a claim can partially fail (someone else got there first, or the
    * row duplicates one you already hold), so the authoritative result has to
    * come back from the database.
+   *
+   * `explicitIds` drives the single-row buttons; without it the current
+   * selection is used, which is what the batch bar wants.
    */
-  const runPoolAction = async (action: 'release' | 'claim' | 'withdraw') => {
-    const ids = Array.from(selectedIds);
+  const runPoolAction = async (
+    action: 'release' | 'claim' | 'withdraw',
+    explicitIds?: string[]
+  ) => {
+    const ids = explicitIds ?? Array.from(selectedIds);
     if (ids.length === 0) return;
 
     const verb = action === 'release' ? '釋放' : action === 'claim' ? '認領' : '收回';
     if (action === 'release' && !confirm(`確定要釋放 ${ids.length} 筆到商機池？其他帳號將可認領。`)) return;
+    if (action === 'withdraw' && !confirm(`確定要從商機池收回 ${ids.length} 筆？其他帳號將不再看得到。`)) return;
 
     setBatchBusy(true);
     try {
@@ -349,8 +356,16 @@ function SearchResultsContent() {
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
       const notes: string[] = [];
-      if (action === 'release') notes.push(`已釋放 ${data.released} 筆`);
-      if (action === 'withdraw') notes.push(`已收回 ${data.withdrawn} 筆`);
+      if (action === 'release') {
+        notes.push(`已釋放 ${data.released} 筆`);
+        if (data.skipped > 0) notes.push(`${data.skipped} 筆略過（已在商機池中，或不是您的資料）`);
+      }
+      if (action === 'withdraw') {
+        notes.push(`已收回 ${data.withdrawn} 筆`);
+        // The usual reason a withdraw finds nothing: a colleague claimed it
+        // first. Saying "skipped" alone leaves the user guessing.
+        if (data.skipped > 0) notes.push(`${data.skipped} 筆無法收回，可能已被其他帳號認領`);
+      }
       if (action === 'claim') {
         notes.push(`已認領 ${data.claimed} 筆`);
         // Someone else claimed it between the list loading and the click.
@@ -362,7 +377,6 @@ function SearchResultsContent() {
           );
         }
       }
-      if (data.skipped > 0) notes.push(`${data.skipped} 筆略過`);
 
       setSelectedIds(new Set());
       alert(notes.join('\n'));
@@ -638,7 +652,9 @@ function SearchResultsContent() {
               {/* Ownership column: shows the releaser in the shared pool, and
                   the release/claim state in the account's own pool. */}
               <col style={{ width: 120 }} />
-              <col style={{ width: 92 }} />
+              {/* 124, not 92: a released row carries a third action button
+                  (收回) and three 32px icon buttons plus gaps do not fit in 92. */}
+              <col style={{ width: 124 }} />
             </colgroup>
             <thead>
               <tr>
@@ -777,6 +793,21 @@ function SearchResultsContent() {
                         </>
                       ) : (
                         <>
+                          {/* A release is easy to trigger by accident, so undo
+                              sits on the row itself rather than only behind
+                              select-then-batch-bar. Shown in both views: the
+                              mistake is as likely to be noticed while looking
+                              at the shared pool. */}
+                          {row.poolState === 'RELEASED' && row.releasedBy?.id === me?.id && (
+                            <button
+                              className={styles.actionBtn}
+                              onClick={() => runPoolAction('withdraw', [row.id])}
+                              disabled={batchBusy}
+                              title="收回：取消釋放，其他帳號將不再看得到"
+                            >
+                              <Undo2 size={16} style={{ color: '#f59e0b' }} />
+                            </button>
+                          )}
                           {/* Editing is owner-only server-side; hiding the
                               button in the shared pool avoids offering an
                               action that would just 403. */}

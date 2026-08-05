@@ -338,9 +338,10 @@ export default function HelpPage() {
               <strong>釋放到商機池</strong>。釋放後該筆會標示為<strong>待認領</strong>，
               所有帳號都看得到，但編輯權仍在您手上。
             </Step>
-            <Step n={3} title="收回">
-              只要還沒被認領，隨時可以在「我的結果池」勾選後按<strong>收回</strong>，
-              資料就會退回私有狀態，其他人看不到。
+            <Step n={3} title="收回（誤按釋放時用）">
+              只要<strong>還沒被認領</strong>，隨時可以收回，資料就會退回私有狀態，其他人看不到。
+              兩種做法：待認領那一列的操作欄有<strong>↩ 收回</strong>按鈕（單筆，兩個分頁都有）；
+              或在「我的結果池」勾選多筆後用底部批次列的<strong>收回</strong>。
             </Step>
             <Step n={4} title="認領">
               切到「商機池」勾選想接手的公司，按<strong>認領</strong>。
@@ -357,6 +358,12 @@ export default function HelpPage() {
           <Note>
             認領時系統會檢查您的結果池是否已有同一家公司（以網站網域比對）。
             若已存在會略過並提示，避免同一家廠商在您手上出現兩筆。
+          </Note>
+
+          <Note type="warn">
+            <strong>已經被認領的資料無法收回。</strong>認領完成後擁有權就轉到對方帳號，
+            系統不會從對方手上把資料抽走。按了收回但該筆已被認領時，
+            會出現「無法收回，可能已被其他帳號認領」的提示。若確實需要拿回，請直接與對方協調。
           </Note>
 
           <Note type="warn">
