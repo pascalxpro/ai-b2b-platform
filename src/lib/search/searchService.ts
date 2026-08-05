@@ -760,6 +760,10 @@ export async function executeSearchTask(taskId: string) {
           data: {
             searchTaskId: taskId,
             workspaceId: task.workspaceId,
+            // The account whose search produced this row owns it. Without
+            // this, new results would be ownerless and only reachable through
+            // the legacy backfill.
+            ownerUserId: task.createdById,
             companyName: finalCompanyName,
             website: item.website,
             country: detectedCountry,

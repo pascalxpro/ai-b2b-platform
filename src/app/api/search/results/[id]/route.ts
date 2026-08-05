@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/guard';
+import { visibilityFilter, canModifyResult } from '@/lib/search/ownership';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth(request);
@@ -9,18 +10,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const { id } = await params;
-    const result = await prisma.searchResult.findUnique({
-      where: { id },
+    // findFirst with the visibility filter, not findUnique by id: otherwise
+    // any signed-in user could read any row by guessing/holding its id.
+    const result = await prisma.searchResult.findFirst({
+      where: { AND: [{ id }, visibilityFilter(auth)] },
       include: {
         sources: true,
         searchTask: { select: { name: true } },
+        owner: { select: { id: true, name: true, email: true } },
+        releasedBy: { select: { id: true, name: true, email: true } },
+        claimedBy: { select: { id: true, name: true, email: true } },
       },
     });
-    
+
     if (!result) {
       return NextResponse.json({ error: 'Result not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -33,6 +39,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const { id } = await params;
+
+    // Released rows are visible to everyone but must stay editable only by
+    // their owner — visibility and mutability are deliberately different.
+    if (!(await canModifyResult(auth, id))) {
+      return NextResponse.json(
+        { error: '無權限修改此筆資料（僅擁有者可編輯）' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
 
     const updateData: any = {};

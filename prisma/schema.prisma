@@ -84,6 +84,18 @@ enum ConversionStatus {
   CONVERTED_OPPORTUNITY
 }
 
+/// Who can see a search result.
+///  PRIVATE  — only its owner (the account whose search produced it).
+///  RELEASED — published to the shared opportunity pool, not yet claimed.
+///             Stays visible to the releaser, deliberately, so they can see
+///             who eventually picks it up.
+///  CLAIMED  — taken by another account; ownership has transferred.
+enum PoolState {
+  PRIVATE
+  RELEASED
+  CLAIMED
+}
+
 enum TaskPriority {
   LOW
   MEDIUM
@@ -170,6 +182,9 @@ model User {
   approvalsRequested Approval[] @relation("ApprovalsRequested")
   approvalsHandled   Approval[] @relation("ApprovalsHandled")
   savedSearches      SavedSearch[]
+  resultsOwned       SearchResult[] @relation("ResultsOwned")
+  resultsReleased    SearchResult[] @relation("ResultsReleased")
+  resultsClaimed     SearchResult[] @relation("ResultsClaimed")
 
   @@map("users")
 }
@@ -359,16 +374,37 @@ model SearchResult {
   qualityStatus      QualityStatus    @default(NEW) @map("quality_status")
   duplicateKey       String?          @map("duplicate_key")
   conversionStatus   ConversionStatus @default(NONE) @map("conversion_status")
+
+  // ─── Per-account ownership and the shared opportunity pool ───
+  // Nullable so the column can be added to a live database without a data
+  // migration; rows created before this existed are backfilled from
+  // searchTask.createdById (see backfillResultOwners).
+  ownerUserId        String?          @map("owner_user_id")
+  poolState          PoolState        @default(PRIVATE) @map("pool_state")
+  // Kept permanently, separate from ownerUserId: ownerUserId moves to the
+  // claimer, so without this the account that actually found the company
+  // would be lost the moment someone claimed it.
+  releasedByUserId   String?          @map("released_by_user_id")
+  releasedAt         DateTime?        @map("released_at")
+  claimedByUserId    String?          @map("claimed_by_user_id")
+  claimedAt          DateTime?        @map("claimed_at")
+
   createdAt          DateTime         @default(now()) @map("created_at")
   updatedAt          DateTime         @updatedAt @map("updated_at")
 
   searchTask         SearchTask       @relation(fields: [searchTaskId], references: [id], onDelete: Cascade)
   workspace          Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   canonicalCompany   CanonicalCompany? @relation(fields: [canonicalCompanyId], references: [id], onDelete: SetNull)
+  owner              User?            @relation("ResultsOwned", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  releasedBy         User?            @relation("ResultsReleased", fields: [releasedByUserId], references: [id], onDelete: SetNull)
+  claimedBy          User?            @relation("ResultsClaimed", fields: [claimedByUserId], references: [id], onDelete: SetNull)
   sources            SearchSource[]
 
   @@index([searchTaskId])
   @@index([workspaceId])
+  // The result pool always filters on one of these two.
+  @@index([ownerUserId])
+  @@index([poolState])
   @@map("search_results")
 }
 
