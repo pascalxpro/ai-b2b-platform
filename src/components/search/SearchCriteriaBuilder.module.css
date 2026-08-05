@@ -125,6 +125,187 @@
   border-color: var(--color-primary);
 }
 
+/* ─── AI criteria suggestions ─── */
+.suggestRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.suggestBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.suggestBtn:disabled {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.suggestHint {
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+  /* Gives way before the button does on a narrow modal. */
+  flex: 1 1 240px;
+  line-height: 1.4;
+}
+
+.suggestPanel {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 10px;
+}
+
+.suggestPanelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+.staleTag {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+.suggestGroup {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.suggestGroupLabel {
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding-top: 4px;
+  min-width: 108px;
+}
+
+.suggestChipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  flex: 1 1 260px;
+}
+
+.aiChip {
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.aiChip:hover:not(:disabled) {
+  border-color: #6366f1;
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.aiChipAdded {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.08);
+  color: #10b981;
+  cursor: default;
+}
+
+.aiChipZh {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+}
+
+.aiChipAll {
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px dashed rgba(99, 102, 241, 0.5);
+  background: transparent;
+  color: #6366f1;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.queriesToggle {
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #6366f1;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.queriesBox {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+}
+
+.queryLine {
+  font-size: 0.78rem;
+  color: var(--color-text);
+  padding: 2px 0;
+  /* Queries are long and must stay readable rather than widen the modal. */
+  word-break: break-word;
+}
+
+.queryExclude {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: 0.74rem;
+  color: var(--color-text-muted);
+}
+
+.previewTermList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.previewTerm {
+  padding: 3px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+  font-size: 0.78rem;
+  color: var(--color-text);
+}
+
 /* ─── Industry Suggestions ─── */
 .quickChipsRow {
   display: flex;

@@ -7,9 +7,60 @@ import Portal from '@/components/ui/Portal';
 import BrowserKeyModal from '@/components/ai/BrowserKeyModal';
 import { callGemini, DEFAULT_GEMINI_MODEL } from '@/lib/ai/gemini';
 import { getBrowserGeminiKey, resolveModel } from '@/lib/ai/browserKey';
-import { buildTranslatePrompt, buildOptimizePrompt, parseOptimizeResponse, type OptimizedResult } from '@/lib/ai/prompts';
+import {
+  buildTranslatePrompt, buildOptimizePrompt, parseOptimizeResponse,
+  type OptimizedResult, type SuggestionTerm,
+} from '@/lib/ai/prompts';
 import { COUNTRIES, getCountry } from '@/lib/search/countries';
 import styles from './SearchCriteriaBuilder.module.css';
+
+/**
+ * One row of AI-suggested terms for a single criteria field.
+ *
+ * Each chip shows the local term with a Chinese gloss, because the user reads
+ * Chinese while the terms are Japanese/Korean/Thai — without the gloss the
+ * suggestions cannot be reviewed, only accepted on faith. Terms already on the
+ * form stay visible as "added" rather than disappearing, so the row does not
+ * reflow underneath the cursor while clicking through it.
+ */
+function SuggestGroup({
+  label, terms, current, onAdd, onAddAll,
+}: {
+  label: string;
+  terms: SuggestionTerm[];
+  current: string[];
+  onAdd: (t: SuggestionTerm) => void;
+  onAddAll: () => void;
+}) {
+  if (terms.length === 0) return null;
+  const remaining = terms.filter(t => !current.includes(t.local)).length;
+
+  return (
+    <div className={styles.suggestGroup}>
+      <span className={styles.suggestGroupLabel}>{label}</span>
+      <div className={styles.suggestChipsRow}>
+        {terms.map(t => {
+          const added = current.includes(t.local);
+          return (
+            <button
+              key={t.local}
+              className={`${styles.aiChip} ${added ? styles.aiChipAdded : ''}`}
+              onClick={() => !added && onAdd(t)}
+              disabled={added}
+              title={added ? '已加入' : `加入「${t.local}」`}
+            >
+              {added ? '✓ ' : '+ '}{t.local}
+              {t.zh && <span className={styles.aiChipZh}>（{t.zh}）</span>}
+            </button>
+          );
+        })}
+        {remaining > 1 && (
+          <button className={styles.aiChipAll} onClick={onAddAll}>全部加入（{remaining}）</button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Simple inline TagInput since we need it self-contained
 const TagInput = ({ 
@@ -103,6 +154,29 @@ export default function SearchCriteriaBuilder({
   const [optimizedData, setOptimizedData] = useState<Record<string, OptimizedData>>({});
   const [previewTab, setPreviewTab] = useState('');
   const [optimizeError, setOptimizeError] = useState('');
+
+  /**
+   * Result of the "AI 建議條件" button: the suggested terms shown as chips, and
+   * the queries that will be searched. Holding both from one call is what keeps
+   * the normal path at a single AI request — pressing 搜尋 without touching
+   * anything reuses this rather than asking the model again.
+   */
+  const [suggestion, setSuggestion] = useState<OptimizedResult | null>(null);
+  const [suggestionCountry, setSuggestionCountry] = useState('');
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState('');
+  /**
+   * Set whenever a criteria field changes after a suggestion arrived. The
+   * cached queries were derived from the old fields, so reusing them would
+   * silently ignore the edit — the same "editing does nothing" trap the
+   * preview panel used to have. Stale means 搜尋 re-runs the optimizer.
+   */
+  const [suggestionStale, setSuggestionStale] = useState(false);
+  const [showQueries, setShowQueries] = useState(false);
+
+  // Every criteria mutation funnels through this, so no field can change
+  // without invalidating the cached queries.
+  const touched = () => { setShowEstimates(true); setSuggestionStale(true); };
 
   // AI Translation state
   const [translateInput, setTranslateInput] = useState('');
@@ -328,15 +402,95 @@ export default function SearchCriteriaBuilder({
 
 
   const toggleCompanyType = (type: string) => {
-    setCompanyTypes(prev => 
-      prev.includes(type) 
+    setCompanyTypes(prev =>
+      prev.includes(type)
         ? prev.filter(t => t !== type)
         : [...prev, type]
     );
-    setShowEstimates(true);
+    touched();
   };
 
+  /**
+   * One AI call against the criteria as they currently stand. Shared by the
+   * 建議 button and the fallback path in handleSubmit, so both always send an
+   * identical prompt.
+   */
+  const runOptimize = async (): Promise<OptimizedResult> => {
+    const criteria = { queryText: description, industries, companyTypes, keywords };
+
+    if (browserMode) {
+      const raw = await callGemini(
+        getBrowserGeminiKey(),
+        resolveModel(aiModel),
+        buildOptimizePrompt(criteria, country),
+        // 0.7, not 0.4: the job is four genuinely different angles on the same
+        // goal, and a low temperature just rephrases the first one.
+        { temperature: 0.7, maxOutputTokens: 1500 },
+      );
+      return parseOptimizeResponse(raw, country);
+    }
+
+    const res = await fetch('/api/ai/optimize-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ criteria, targetCountry: country }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '優化失敗');
+    const result = data.optimized?.[country];
+    if (!result) throw new Error('AI 未取得任何結果');
+    return result;
+  };
+
+  /** "AI 建議條件" — fills the criteria fields before the user searches. */
+  const handleSuggest = async () => {
+    if (!description.trim() || !country) return;
+    if (needsOwnKey) { setShowKeyModal(true); return; }
+
+    setIsSuggesting(true);
+    setSuggestError('');
+    try {
+      const result = await runOptimize();
+      setSuggestion(result);
+      setSuggestionCountry(country);
+      // Produced from the fields exactly as they stand, so it starts fresh;
+      // any later edit flips this.
+      setSuggestionStale(false);
+      setShowQueries(false);
+    } catch (e: any) {
+      console.error('[AI] Suggest failed:', e);
+      setSuggestError(e.message || String(e));
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
+
+  /** Adds suggested terms to a field, skipping ones already present. */
+  const addTerms = (
+    setter: React.Dispatch<React.SetStateAction<string[]>>,
+    current: string[],
+    terms: SuggestionTerm[],
+  ) => {
+    const additions = terms.map(t => t.local).filter(t => !current.includes(t));
+    if (additions.length === 0) return;
+    setter([...current, ...additions]);
+    touched();
+  };
+
+  /** True when the cached suggestion still matches what is on the form. */
+  const suggestionUsable = Boolean(
+    suggestion && suggestionCountry === country && !suggestionStale && suggestion.queries.length > 0
+  );
+
   const handleSubmit = async () => {
+    // Already reviewed a suggestion and changed nothing since — search on it
+    // directly. This is what keeps the normal path at one AI call, and it
+    // skips a confirmation dialog for something already seen.
+    if (suggestionUsable) {
+      await executeSearch({ [country]: suggestion! });
+      return;
+    }
+
     // A country is what makes optimization meaningful — it selects the
     // language and the local trade vocabulary. Without one, search directly.
     if (country) {
@@ -346,37 +500,9 @@ export default function SearchCriteriaBuilder({
       setOptimizeError('');
       setShowPreview(true);
       try {
-        const criteria = { queryText: description, industries, companyTypes, keywords };
-        let result: OptimizedData | null = null;
-
-        if (browserMode) {
-          const raw = await callGemini(
-            getBrowserGeminiKey(),
-            resolveModel(aiModel),
-            buildOptimizePrompt(criteria, country),
-            // 0.7, not 0.4: the job is to produce four genuinely different
-            // angles on the same goal, and a low temperature just rephrases
-            // the first one.
-            { temperature: 0.7, maxOutputTokens: 1500 },
-          );
-          result = parseOptimizeResponse(raw, country);
-        } else {
-          const res = await fetch('/api/ai/optimize-search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ criteria, targetCountry: country }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || '優化失敗');
-          result = data.optimized?.[country] || null;
-        }
-
-        if (!result) {
-          setOptimizeError('AI 優化失敗：未取得任何結果');
-        } else {
-          setOptimizedData({ [country]: result });
-          setPreviewTab(country);
-        }
+        const result = await runOptimize();
+        setOptimizedData({ [country]: result });
+        setPreviewTab(country);
       } catch (e: any) {
         console.error('[AI] Optimize failed:', e);
         setOptimizeError(e.message || String(e));
@@ -432,13 +558,18 @@ export default function SearchCriteriaBuilder({
     executeSearch(optimizedData);
   };
 
-  /** Comma-separated tag fields (industries, keywords, excludeTerms, …). */
-  const updateOptimizedField = (country: string, field: keyof OptimizedData, value: string) => {
+  /**
+   * The one comma-separated field left editable in the preview. Narrowed to
+   * 'excludeTerms' on purpose: the other term lists are {local, zh} objects
+   * now, and they are not sent to the search anyway, so a generic setter here
+   * would only make it easy to reintroduce an editor that changes nothing.
+   */
+  const updateExcludeTerms = (country: string, value: string) => {
     setOptimizedData(prev => ({
       ...prev,
       [country]: {
         ...prev[country],
-        [field]: value.split(',').map(s => s.trim()).filter(Boolean),
+        excludeTerms: value.split(',').map(s => s.trim()).filter(Boolean),
       },
     }));
   };
@@ -631,9 +762,82 @@ export default function SearchCriteriaBuilder({
             value={description}
             onChange={e => {
               setDescription(e.target.value);
-              setShowEstimates(true);
+              touched();
             }}
           />
+
+          {/* One AI call turns the description into the four criteria fields.
+              Explicitly triggered, never on keystroke: the free tier allows
+              15 requests/minute, and a half-typed description suggests badly. */}
+          <div className={styles.suggestRow}>
+            <button
+              className={styles.suggestBtn}
+              onClick={handleSuggest}
+              disabled={isSuggesting || !description.trim() || !country}
+              title={
+                !country ? '請先選擇目標國家——建議詞需要知道用哪種語言'
+                  : !description.trim() ? '請先輸入搜尋描述'
+                  : '依描述建議目標國家的產業別、關鍵字、公司類型與目標客戶類型'
+              }
+            >
+              {isSuggesting ? <Loader2 size={14} className={styles.spinning} /> : <Sparkles size={14} />}
+              {isSuggesting ? 'AI 分析中…' : 'AI 建議條件'}
+            </button>
+            <span className={styles.suggestHint}>
+              {!country
+                ? '選擇目標國家後即可使用'
+                : `依描述產出 ${country} 當地用語的產業別、關鍵字、公司類型與目標客戶類型`}
+            </span>
+          </div>
+
+          {suggestError && <div className={styles.translateError}>❌ {suggestError}</div>}
+
+          {suggestion && suggestionCountry === country && (
+            <div className={styles.suggestPanel}>
+              <div className={styles.suggestPanelHead}>
+                <span>✨ AI 建議（{suggestion.langName}，點擊加入，括號為中文對照）</span>
+                {suggestionStale && (
+                  <span className={styles.staleTag}>條件已變更，搜尋時會重新產生查詢語句</span>
+                )}
+              </div>
+
+              <SuggestGroup
+                label="產業別" terms={suggestion.industries} current={industries}
+                onAdd={t => addTerms(setIndustries, industries, [t])}
+                onAddAll={() => addTerms(setIndustries, industries, suggestion.industries)}
+              />
+              <SuggestGroup
+                label="關鍵字" terms={suggestion.keywords} current={keywords}
+                onAdd={t => addTerms(setKeywords, keywords, [t])}
+                onAddAll={() => addTerms(setKeywords, keywords, suggestion.keywords)}
+              />
+              {/* Both land in companyTypes — the form keeps one array, but the
+                  AI separates the two axes so each appears under the heading
+                  that says what it means. */}
+              <SuggestGroup
+                label="公司類型（要找的對象）" terms={suggestion.companyTypes} current={companyTypes}
+                onAdd={t => addTerms(setCompanyTypes, companyTypes, [t])}
+                onAddAll={() => addTerms(setCompanyTypes, companyTypes, suggestion.companyTypes)}
+              />
+              <SuggestGroup
+                label="目標客戶類型（對方服務的客群）" terms={suggestion.customerTypes} current={companyTypes}
+                onAdd={t => addTerms(setCompanyTypes, companyTypes, [t])}
+                onAddAll={() => addTerms(setCompanyTypes, companyTypes, suggestion.customerTypes)}
+              />
+
+              <button className={styles.queriesToggle} onClick={() => setShowQueries(v => !v)}>
+                {showQueries ? '▾' : '▸'} 查看 AI 產生的 {suggestion.queries.length} 條搜尋語句
+              </button>
+              {showQueries && (
+                <div className={styles.queriesBox}>
+                  {suggestion.queries.map((q, i) => <div key={i} className={styles.queryLine}>{q}</div>)}
+                  {suggestion.excludeTerms.length > 0 && (
+                    <div className={styles.queryExclude}>排除：{suggestion.excludeTerms.join('、')}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className={styles.section}>
@@ -647,7 +851,7 @@ export default function SearchCriteriaBuilder({
               <select
                 className={styles.selectField}
                 value={country}
-                onChange={e => { setCountry(e.target.value); setShowEstimates(true); }}
+                onChange={e => { setCountry(e.target.value); touched(); }}
               >
                 <option value="">不指定國家</option>
                 {COUNTRIES.map(c => (
@@ -659,8 +863,8 @@ export default function SearchCriteriaBuilder({
               <span className={styles.filterLabel}>產業別</span>
               <TagInput
                 tags={industries}
-                onAdd={tag => { setIndustries([...industries, tag]); setShowEstimates(true); }}
-                onRemove={tag => { setIndustries(industries.filter(t => t !== tag)); setShowEstimates(true); }}
+                onAdd={tag => { setIndustries([...industries, tag]); touched(); }}
+                onRemove={tag => { setIndustries(industries.filter(t => t !== tag)); touched(); }}
                 placeholder="輸入產業並按 Enter"
                 suggestions={INDUSTRY_SUGGESTIONS}
               />
@@ -675,7 +879,7 @@ export default function SearchCriteriaBuilder({
                 <button
                   key={c}
                   className={`${styles.suggestChip} ${country === c ? styles.suggestChipActive : ''}`}
-                  onClick={() => { setCountry(country === c ? '' : c); setShowEstimates(true); }}
+                  onClick={() => { setCountry(country === c ? '' : c); touched(); }}
                 >
                   {c}
                 </button>
@@ -692,7 +896,7 @@ export default function SearchCriteriaBuilder({
                   <button
                     key={ind.local}
                     className={`${styles.suggestChip} ${styles.suggestChipIndustry}`}
-                    onClick={() => { setIndustries([...industries, ind.local]); setShowEstimates(true); }}
+                    onClick={() => { setIndustries([...industries, ind.local]); touched(); }}
                     title={`${ind.label}（${ind.local}）`}
                   >
                     {ind.local}
@@ -736,8 +940,8 @@ export default function SearchCriteriaBuilder({
               <span className={styles.filterLabel}>關鍵字</span>
               <TagInput
                 tags={keywords}
-                onAdd={tag => { setKeywords([...keywords, tag]); setShowEstimates(true); }}
-                onRemove={tag => { setKeywords(keywords.filter(t => t !== tag)); setShowEstimates(true); }}
+                onAdd={tag => { setKeywords([...keywords, tag]); touched(); }}
+                onRemove={tag => { setKeywords(keywords.filter(t => t !== tag)); touched(); }}
                 placeholder="輸入關鍵字並按 Enter"
               />
             </div>
@@ -871,46 +1075,36 @@ export default function SearchCriteriaBuilder({
                         <input
                           className={styles.previewInput}
                           value={optimizedData[previewTab].excludeTerms.join(', ')}
-                          onChange={e => updateOptimizedField(previewTab, 'excludeTerms', e.target.value)}
+                          onChange={e => updateExcludeTerms(previewTab, e.target.value)}
                         />
                       </div>
                     )}
 
-                    {optimizedData[previewTab].industries?.length > 0 && (
-                      <div className={styles.previewField}>
-                        <div className={styles.previewFieldLabel}>產業別</div>
-                        <div className={styles.previewOriginal}>原始：{industries.join(', ')}</div>
-                        <input
-                          className={styles.previewInput}
-                          value={optimizedData[previewTab].industries.join(', ')}
-                          onChange={e => updateOptimizedField(previewTab, 'industries', e.target.value)}
-                        />
-                      </div>
-                    )}
-
-                    {optimizedData[previewTab].companyTypes?.length > 0 && (
-                      <div className={styles.previewField}>
-                        <div className={styles.previewFieldLabel}>公司/客戶類型</div>
-                        <div className={styles.previewOriginal}>原始：{companyTypes.join(', ')}</div>
-                        <input
-                          className={styles.previewInput}
-                          value={optimizedData[previewTab].companyTypes.join(', ')}
-                          onChange={e => updateOptimizedField(previewTab, 'companyTypes', e.target.value)}
-                        />
-                      </div>
-                    )}
-
-                    {optimizedData[previewTab].keywords?.length > 0 && (
-                      <div className={styles.previewField}>
-                        <div className={styles.previewFieldLabel}>關鍵字</div>
-                        <div className={styles.previewOriginal}>原始：{keywords.join(', ')}</div>
-                        <input
-                          className={styles.previewInput}
-                          value={optimizedData[previewTab].keywords.join(', ')}
-                          onChange={e => updateOptimizedField(previewTab, 'keywords', e.target.value)}
-                        />
-                      </div>
-                    )}
+                    {/* Read-only, deliberately. Only queries and excludeTerms
+                        above are sent to the search engines; these are what the
+                        AI understood, shown so the queries can be judged. To
+                        change them, close this and use「AI 建議條件」on the form,
+                        where edits do feed back into the queries. */}
+                    {(['industries', 'companyTypes', 'customerTypes', 'keywords'] as const).map(field => {
+                      const terms = optimizedData[previewTab][field];
+                      if (!terms?.length) return null;
+                      const LABEL = {
+                        industries: '產業別', companyTypes: '公司類型',
+                        customerTypes: '目標客戶類型', keywords: '關鍵字',
+                      }[field];
+                      return (
+                        <div className={styles.previewField} key={field}>
+                          <div className={styles.previewFieldLabel}>{LABEL}（AI 理解，僅供參考）</div>
+                          <div className={styles.previewTermList}>
+                            {terms.map(t => (
+                              <span key={t.local} className={styles.previewTerm}>
+                                {t.local}{t.zh && <span className={styles.aiChipZh}>（{t.zh}）</span>}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
