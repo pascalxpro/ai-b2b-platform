@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   Search, FileSearch, LayoutDashboard, Building2, Users,
   CheckSquare, Mic, BookOpen, Bot, Target, BarChart3,
-  Settings, ChevronRight, ChevronLeft
+  Settings, HelpCircle, ChevronRight, ChevronLeft
 } from 'lucide-react';
 import { DEFAULT_BRANDING, type BrandingSettings } from '@/lib/settings/branding';
 import styles from './Sidebar.module.css';
@@ -29,6 +29,7 @@ const NAV_ITEMS = [
   { id: 'ai', icon: Bot, label: 'AI Business Partner', href: '/ai-partner' },
   { id: 'decisions', icon: Target, label: '決策中心', href: '/decisions' },
   { id: 'reports', icon: BarChart3, label: '報表分析', href: '/reports' },
+  { id: 'help', icon: HelpCircle, label: '使用說明', href: '/help' },
   { id: 'settings', icon: Settings, label: '系統管理', href: '/admin' },
 ];
 
