@@ -132,7 +132,7 @@ export default function DashboardLayout({
           borderTop: '1px solid var(--color-border-subtle)',
           opacity: 0.6
         }}>
-          © {new Date().getFullYear()} {branding.brandName} {branding.subtitle} • Powered by AI
+          © {new Date().getFullYear()} {branding.brandName} {branding.subtitle}
         </footer>
       </div>
 
