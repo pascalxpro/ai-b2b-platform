@@ -97,6 +97,16 @@
   background: rgba(250, 140, 22, 0.1);
 }
 
+/* Amber, matching the 待認領 badge in the results table so the action and the
+   state it produces read as the same thing. */
+.btnRelease {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+.btnRelease:hover {
+  background: rgba(245, 158, 11, 0.12);
+}
+
 .btnPrimary {
   background: var(--color-primary);
   color: white;

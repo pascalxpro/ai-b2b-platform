@@ -24,6 +24,104 @@ const CONFIDENCE_META: Record<string, { label: string; color: string; title: str
 // content.
 const show = (value: string, placeholder: string) => (value?.trim() ? value : placeholder);
 
+/**
+ * Maps an API row into the shape the table renders. Shared by the initial load
+ * and the post-pool-action reload so the two can't drift — an earlier version
+ * inlined a second copy and immediately diverged.
+ */
+function mapResult(d: any) {
+  let s = d.scoreJson;
+  if (typeof s === 'string') {
+    try { s = JSON.parse(s); } catch { s = {}; }
+  }
+  return {
+    id: d.id,
+    name: d.companyName || d.name || '',
+    localName: d.companyName || '',
+    // Raw values only — "未確認"/"未知產業" placeholders are applied at render
+    // time via show(). Baking them in here made the inline editor pre-fill
+    // those literal strings and save them as real data.
+    country: d.country || '',
+    countryConfidence: s?.countryConfidence || 'unscoped',
+    industry: s?.industry || '',
+    companyType: s?.companyType || '',
+    employeeCount: s?.employeeCount || '',
+    revenue: s?.revenue || '',
+    // Falls back to 0, not the old static 75, so genuinely unscored rows are
+    // visible rather than masquerading as decent.
+    qualityScore: s?.totalScore ?? 0,
+    qualityStatus: d.qualityStatus || 'NEW',
+    conversionStatus: d.conversionStatus || 'NONE',
+    sourceCount: d.sourceCount ?? (Array.isArray(d.sources) ? d.sources.length : 0),
+    website: d.website || '',
+    email: s?.email || '',
+    phone: s?.phone || '',
+    linkedin: s?.linkedin || '',
+    notes: s?.notes || '',
+    sources: d.sources || [],
+    provider: s?.provider || '',
+    // Ownership / opportunity-pool state
+    poolState: d.poolState || 'PRIVATE',
+    owner: d.owner || null,
+    releasedBy: d.releasedBy || null,
+    claimedBy: d.claimedBy || null,
+    releasedAt: d.releasedAt || null,
+    claimedAt: d.claimedAt || null,
+    createdAt: d.createdAt,
+  };
+}
+
+/** The user shape the results API embeds for owner / releasedBy / claimedBy. */
+type PoolUser = { id: string; name?: string | null; email?: string | null } | null | undefined;
+
+/**
+ * Shows where a row sits in the ownership flow. What's useful differs by view:
+ * in the shared pool the question is "who released this", in your own pool
+ * it's "have I released it, and did anyone take it".
+ */
+function OwnershipCell({
+  row,
+  poolView,
+  myId,
+}: {
+  row: { poolState?: string; releasedBy?: PoolUser; claimedBy?: PoolUser };
+  poolView: 'mine' | 'opportunities';
+  myId?: string;
+}) {
+  const name = (u: PoolUser) => (u?.id === myId ? '我' : u?.name || u?.email || '—');
+
+  if (poolView === 'opportunities') {
+    const mine = row.releasedBy?.id === myId;
+    return (
+      <span style={{ fontSize: '0.78rem', color: mine ? 'var(--color-text-muted)' : 'var(--color-text)' }}>
+        {name(row.releasedBy)}{mine ? '（自己釋放）' : ''}
+      </span>
+    );
+  }
+
+  if (row.poolState === 'CLAIMED') {
+    // Either I claimed someone's release, or someone claimed mine.
+    const iClaimed = row.claimedBy?.id === myId;
+    return (
+      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+        {iClaimed
+          ? <>認領自 <strong style={{ color: 'var(--color-text)' }}>{name(row.releasedBy)}</strong></>
+          : <>已由 <strong style={{ color: 'var(--color-text)' }}>{name(row.claimedBy)}</strong> 認領</>}
+      </span>
+    );
+  }
+
+  if (row.poolState === 'RELEASED') {
+    return (
+      <span style={{ fontSize: '0.72rem', padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap', color: '#f59e0b', border: '1px solid #f59e0b' }}>
+        待認領
+      </span>
+    );
+  }
+
+  return <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>—</span>;
+}
+
 function SearchResultsContent() {
   const searchParams = useSearchParams();
   const taskId = searchParams.get('taskId');
@@ -48,6 +146,19 @@ function SearchResultsContent() {
   const [viewMode, setViewMode] = useState<'table' | 'card'>('table');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  // 'mine' = this account's own results; 'opportunities' = the shared pool of
+  // results other accounts have released for anyone to claim.
+  const [poolView, setPoolView] = useState<'mine' | 'opportunities'>('mine');
+  const [me, setMe] = useState<{ id: string } | null>(null);
+
+  useEffect(() => {
+    // Needed to tell "released by me" from "released by a colleague" in the
+    // opportunity pool — you can withdraw your own, but not claim it.
+    fetch('/api/auth/me')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setMe(d?.user ? { id: d.user.id } : null))
+      .catch(() => setMe(null));
+  }, []);
 
   useEffect(() => {
     // Fetch task info
@@ -72,52 +183,20 @@ function SearchResultsContent() {
         .catch(console.error);
     }
 
-    // Fetch results
-    const url = taskId ? `/api/search/results?taskId=${taskId}` : '/api/search/results';
+    // Fetch results. The opportunity pool is cross-account and cross-task, so
+    // the taskId filter is deliberately not applied there.
+    const url = poolView === 'opportunities'
+      ? '/api/search/results?pool=opportunities'
+      : (taskId ? `/api/search/results?taskId=${taskId}` : '/api/search/results');
+    setLoading(true);
     fetch(url)
       .then(r => r.json())
       .then(data => {
-        if (Array.isArray(data)) {
-          setResults(data.map((d: any) => {
-            let scoreObj = d.scoreJson;
-            if (typeof scoreObj === 'string') {
-              try { scoreObj = JSON.parse(scoreObj); } catch (e) { scoreObj = {}; }
-            }
-            return {
-              id: d.id,
-              name: d.companyName || d.name || '',
-              localName: d.companyName || '',
-              // Raw values only — the "未確認"/"未知產業" placeholders are applied
-              // at render time (see PLACEHOLDER below). Baking them in here meant
-              // the inline editor pre-filled those literal strings, so saving a
-              // row wrote "未知產業" into the database as if it were real data.
-              country: d.country || '',
-              countryConfidence: scoreObj?.countryConfidence || 'unscoped',
-              industry: scoreObj?.industry || '',
-              companyType: scoreObj?.companyType || '',
-              employeeCount: scoreObj?.employeeCount || '',
-              revenue: scoreObj?.revenue || '',
-              // Fall back to 0 (not the old static 75) so results genuinely
-              // missing a score are visible instead of masquerading as decent.
-              qualityScore: scoreObj?.totalScore ?? 0,
-              qualityStatus: d.qualityStatus || 'NEW',
-              conversionStatus: d.conversionStatus || 'NONE',
-              sourceCount: d.sourceCount ?? (Array.isArray(d.sources) ? d.sources.length : 0),
-              website: d.website || '',
-              email: scoreObj?.email || '',
-              phone: scoreObj?.phone || '',
-              linkedin: scoreObj?.linkedin || '',
-              notes: scoreObj?.notes || '',
-              sources: d.sources || [],
-              provider: scoreObj?.provider || '',
-              createdAt: d.createdAt
-            };
-          }));
-        }
+        if (Array.isArray(data)) setResults(data.map(mapResult));
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [taskId]);
+  }, [taskId, poolView]);
 
   // Filtered & sorted results
   const filteredResults = useMemo(() => {
@@ -232,6 +311,65 @@ function SearchResultsContent() {
       case 'DUPLICATE': return '重複';
       case 'INVALID': return '無效';
       default: return status;
+    }
+  };
+
+  /**
+   * Release / claim / withdraw against the shared opportunity pool.
+   * Always reloads from the server afterwards rather than patching local
+   * state: a claim can partially fail (someone else got there first, or the
+   * row duplicates one you already hold), so the authoritative result has to
+   * come back from the database.
+   */
+  const runPoolAction = async (action: 'release' | 'claim' | 'withdraw') => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    const verb = action === 'release' ? '釋放' : action === 'claim' ? '認領' : '收回';
+    if (action === 'release' && !confirm(`確定要釋放 ${ids.length} 筆到商機池？其他帳號將可認領。`)) return;
+
+    setBatchBusy(true);
+    try {
+      const res = await fetch('/api/search/results/pool', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      const notes: string[] = [];
+      if (action === 'release') notes.push(`已釋放 ${data.released} 筆`);
+      if (action === 'withdraw') notes.push(`已收回 ${data.withdrawn} 筆`);
+      if (action === 'claim') {
+        notes.push(`已認領 ${data.claimed} 筆`);
+        // Someone else claimed it between the list loading and the click.
+        if (data.lost > 0) notes.push(`${data.lost} 筆已被其他人先行認領`);
+        if (data.duplicates?.length > 0) {
+          notes.push(
+            `${data.duplicates.length} 筆略過（您的結果池已有同一家公司）：\n` +
+            data.duplicates.map((d: any) => `　・${d.companyName}`).join('\n')
+          );
+        }
+      }
+      if (data.skipped > 0) notes.push(`${data.skipped} 筆略過`);
+
+      setSelectedIds(new Set());
+      alert(notes.join('\n'));
+
+      // Re-read from the server rather than patching local state: rows can
+      // leave the current view entirely (a released row leaves the opportunity
+      // pool once claimed) and ownership has changed server-side.
+      const url = poolView === 'opportunities'
+        ? '/api/search/results?pool=opportunities'
+        : (taskId ? `/api/search/results?taskId=${taskId}` : '/api/search/results');
+      const fresh = await fetch(url).then(r => r.json()).catch(() => null);
+      if (Array.isArray(fresh)) setResults(fresh.map(mapResult));
+    } catch (e: any) {
+      console.error(`${verb} failed:`, e);
+      alert(`${verb}失敗：\n${e.message}`);
+    } finally {
+      setBatchBusy(false);
     }
   };
 
@@ -369,11 +507,35 @@ function SearchResultsContent() {
     <div className={styles.page}>
       <Breadcrumb items={[{ label: '搜尋', href: '/' }, { label: '結果池' }]} />
       <div className={styles.header}>
-        <h1 className={styles.title}>搜尋結果池</h1>
+        <h1 className={styles.title}>
+          {poolView === 'opportunities' ? '商機池' : '搜尋結果池'}
+        </h1>
         <span className={styles.resultCount}>共 {filteredResults.length} 筆</span>
       </div>
 
-      {taskInfo && (
+      {/* Which pool is being viewed. "我的結果池" is this account's own results;
+          "商機池" is the shared pool of results colleagues have released. */}
+      <div className={styles.poolTabs}>
+        <button
+          className={`${styles.poolTab} ${poolView === 'mine' ? styles.poolTabActive : ''}`}
+          onClick={() => { setPoolView('mine'); setSelectedIds(new Set()); }}
+        >
+          我的結果池
+        </button>
+        <button
+          className={`${styles.poolTab} ${poolView === 'opportunities' ? styles.poolTabActive : ''}`}
+          onClick={() => { setPoolView('opportunities'); setSelectedIds(new Set()); }}
+        >
+          商機池（可認領）
+        </button>
+        <span className={styles.poolHint}>
+          {poolView === 'opportunities'
+            ? '這裡是同事釋放出來、開放認領的商機。認領後會移入您的結果池。'
+            : '只有您自己的搜尋結果。可選取後釋放到商機池供同事認領。'}
+        </span>
+      </div>
+
+      {taskInfo && poolView === 'mine' && (
         <div className={styles.taskSummaryBar}>
           <div className={styles.taskInfo}>
             <span className={styles.taskName}>目標任務: {taskInfo.name || '未命名任務'}</span>
@@ -433,10 +595,18 @@ function SearchResultsContent() {
           <div className={styles.loading}>載入中...</div>
         ) : filteredResults.length === 0 ? (
           <div className={styles.emptyState}>
-            <p>沒有符合條件的結果</p>
-            <button onClick={() => { setActiveQualityFilter('ALL'); setActiveCountry('ALL'); setSearchTerm(''); }}>
-              清除篩選條件
-            </button>
+            {/* An empty opportunity pool is the normal state, not a filtering
+                mistake — offering "clear filters" there just misleads. */}
+            {poolView === 'opportunities' && results.length === 0 ? (
+              <p>目前沒有開放認領的商機。同事釋放資料後會顯示在這裡。</p>
+            ) : (
+              <>
+                <p>沒有符合條件的結果</p>
+                <button onClick={() => { setActiveQualityFilter('ALL'); setActiveCountry('ALL'); setSearchTerm(''); }}>
+                  清除篩選條件
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <table className={styles.table}>
@@ -455,6 +625,9 @@ function SearchResultsContent() {
               <col style={{ width: 120 }} />
               <col style={{ width: 130 }} />
               <col style={{ width: 90 }} />
+              {/* Ownership column: shows the releaser in the shared pool, and
+                  the release/claim state in the account's own pool. */}
+              <col style={{ width: 120 }} />
               <col style={{ width: 92 }} />
             </colgroup>
             <thead>
@@ -474,6 +647,7 @@ function SearchResultsContent() {
                 <th className={styles.th}>來源引擎</th>
                 <th className={styles.th}>品質分數</th>
                 <th className={styles.th}>狀態</th>
+                <th className={styles.th}>{poolView === 'opportunities' ? '釋放者' : '歸屬'}</th>
                 <th className={styles.th}>操作</th>
               </tr>
             </thead>
@@ -579,6 +753,9 @@ function SearchResultsContent() {
                     </span>
                   </td>
                   <td className={styles.td}>
+                    <OwnershipCell row={row} poolView={poolView} myId={me?.id} />
+                  </td>
+                  <td className={styles.td}>
                     <div style={{ display: 'flex', gap: 4 }}>
                       {editingId === row.id ? (
                         <>
@@ -587,7 +764,12 @@ function SearchResultsContent() {
                         </>
                       ) : (
                         <>
-                          <button className={styles.actionBtn} onClick={() => startEdit(row)} title="編輯"><Edit2 size={16} /></button>
+                          {/* Editing is owner-only server-side; hiding the
+                              button in the shared pool avoids offering an
+                              action that would just 403. */}
+                          {row.owner?.id === me?.id && (
+                            <button className={styles.actionBtn} onClick={() => startEdit(row)} title="編輯"><Edit2 size={16} /></button>
+                          )}
                           <button className={styles.actionBtn} onClick={() => setDetailData(row)} title="檢視"><Eye size={16} /></button>
                         </>
                       )}
@@ -671,9 +853,13 @@ function SearchResultsContent() {
       <BatchActionBar
         selectedCount={selectedIds.size}
         busy={batchBusy}
+        mode={poolView}
         onMarkValid={() => applyBatchUpdate({ qualityStatus: 'VALID' })}
         onMarkInvalid={() => applyBatchUpdate({ qualityStatus: 'INVALID' })}
         onFavorite={() => applyBatchUpdate({ conversionStatus: 'FAVORITED' })}
+        onRelease={() => runPoolAction('release')}
+        onWithdraw={() => runPoolAction('withdraw')}
+        onClaim={() => runPoolAction('claim')}
         onClearSelection={() => setSelectedIds(new Set())}
       />
 

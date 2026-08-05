@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Check, X, Star, XCircle } from 'lucide-react';
+import { Check, X, Star, XCircle, Share2, Undo2, HandCoins } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import styles from './BatchActionBar.module.css';
 
@@ -13,6 +13,15 @@ interface BatchActionBarProps {
   onClearSelection: () => void;
   /** Disables the buttons while a batch update is in flight. */
   busy?: boolean;
+  /**
+   * Which pool is on screen. In the shared opportunity pool the rows belong to
+   * other accounts, so the status/favourite actions would be rejected
+   * server-side — claiming is the only thing on offer there.
+   */
+  mode?: 'mine' | 'opportunities';
+  onRelease?: () => void;
+  onWithdraw?: () => void;
+  onClaim?: () => void;
 }
 
 export default function BatchActionBar({
@@ -22,8 +31,14 @@ export default function BatchActionBar({
   onFavorite,
   onClearSelection,
   busy = false,
+  mode = 'mine',
+  onRelease,
+  onWithdraw,
+  onClaim,
 }: BatchActionBarProps) {
   if (selectedCount === 0) return null;
+
+  const opportunities = mode === 'opportunities';
 
   return (
     <Portal>
@@ -34,32 +49,70 @@ export default function BatchActionBar({
       </div>
 
       <div className={styles.actions}>
-        <button
-          className={`${styles.btn} ${styles.btnSuccess}`}
-          onClick={onMarkValid}
-          disabled={busy}
-        >
-          <Check size={16} />
-          標記有效
-        </button>
+        {opportunities ? (
+          onClaim && (
+            <button
+              className={`${styles.btn} ${styles.btnSuccess}`}
+              onClick={onClaim}
+              disabled={busy}
+            >
+              <HandCoins size={16} />
+              認領
+            </button>
+          )
+        ) : (
+          <>
+            <button
+              className={`${styles.btn} ${styles.btnSuccess}`}
+              onClick={onMarkValid}
+              disabled={busy}
+            >
+              <Check size={16} />
+              標記有效
+            </button>
 
-        <button
-          className={`${styles.btn} ${styles.btnDanger}`}
-          onClick={onMarkInvalid}
-          disabled={busy}
-        >
-          <X size={16} />
-          標記無效
-        </button>
+            <button
+              className={`${styles.btn} ${styles.btnDanger}`}
+              onClick={onMarkInvalid}
+              disabled={busy}
+            >
+              <X size={16} />
+              標記無效
+            </button>
 
-        <button
-          className={`${styles.btn} ${styles.btnAccent}`}
-          onClick={onFavorite}
-          disabled={busy}
-        >
-          <Star size={16} />
-          加入收藏
-        </button>
+            <button
+              className={`${styles.btn} ${styles.btnAccent}`}
+              onClick={onFavorite}
+              disabled={busy}
+            >
+              <Star size={16} />
+              加入收藏
+            </button>
+
+            {onRelease && (
+              <button
+                className={`${styles.btn} ${styles.btnRelease}`}
+                onClick={onRelease}
+                disabled={busy}
+              >
+                <Share2 size={16} />
+                釋放到商機池
+              </button>
+            )}
+
+            {onWithdraw && (
+              <button
+                className={styles.btn}
+                onClick={onWithdraw}
+                disabled={busy}
+                title="將尚未被認領的資料收回為私有"
+              >
+                <Undo2 size={16} />
+                收回
+              </button>
+            )}
+          </>
+        )}
 
         <button
           className={`${styles.btn} ${styles.btnPrimary}`}
