@@ -90,12 +90,11 @@ function OwnershipCell({
 }) {
   const name = (u: PoolUser) => (u?.id === myId ? '我' : u?.name || u?.email || '—');
 
-  // The shared pool never contains the viewer's own releases, so this is
-  // always a colleague.
   if (poolView === 'opportunities') {
+    const mine = row.releasedBy?.id === myId;
     return (
-      <span style={{ fontSize: '0.78rem', color: 'var(--color-text)' }}>
-        {name(row.releasedBy)}
+      <span style={{ fontSize: '0.78rem', color: mine ? 'var(--color-text-muted)' : 'var(--color-text)' }}>
+        {mine ? '我釋放的' : name(row.releasedBy)}
       </span>
     );
   }
@@ -269,9 +268,19 @@ function SearchResultsContent() {
     return filteredResults.slice(start, start + pageSize);
   }, [filteredResults, currentPage, pageSize]);
 
+  /**
+   * In the shared pool a row is only actionable if someone else released it.
+   * Your own releases are shown there so you can confirm the release landed,
+   * but claiming them back off yourself is meaningless and the API rejects it.
+   */
+  const isSelectable = (row: { releasedBy?: PoolUser }) =>
+    poolView !== 'opportunities' || row.releasedBy?.id !== me?.id;
+
+  const selectableResults = filteredResults.filter(isSelectable);
+
   const toggleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
-      setSelectedIds(new Set(filteredResults.map(r => r.id)));
+      setSelectedIds(new Set(selectableResults.map(r => r.id)));
     } else {
       setSelectedIds(new Set());
     }
@@ -531,7 +540,7 @@ function SearchResultsContent() {
         </button>
         <span className={styles.poolHint}>
           {poolView === 'opportunities'
-            ? '這裡是同事釋放出來、開放認領的商機。認領後會移入您的結果池。'
+            ? '所有帳號釋放出來、開放認領的商機。認領後會移入您的結果池。標示「我釋放的」是您自己放上來的，無法自行認領。'
             : '只有您自己的搜尋結果。可選取後釋放到商機池供同事認領。'}
         </span>
       </div>
@@ -599,7 +608,7 @@ function SearchResultsContent() {
             {/* An empty opportunity pool is the normal state, not a filtering
                 mistake — offering "clear filters" there just misleads. */}
             {poolView === 'opportunities' && results.length === 0 ? (
-              <p>目前沒有開放認領的商機。同事釋放資料後會顯示在這裡。</p>
+              <p>目前沒有開放認領的商機。任何帳號釋放資料後都會顯示在這裡。</p>
             ) : (
               <>
                 <p>沒有符合條件的結果</p>
@@ -637,7 +646,8 @@ function SearchResultsContent() {
                   <input
                     type="checkbox"
                     className={styles.checkbox}
-                    checked={selectedIds.size === filteredResults.length && filteredResults.length > 0}
+                    checked={selectedIds.size === selectableResults.length && selectableResults.length > 0}
+                    disabled={selectableResults.length === 0}
                     onChange={toggleSelectAll}
                   />
                 </th>
@@ -663,6 +673,8 @@ function SearchResultsContent() {
                       type="checkbox"
                       className={styles.checkbox}
                       checked={selectedIds.has(row.id)}
+                      disabled={!isSelectable(row)}
+                      title={isSelectable(row) ? undefined : '這是您自己釋放的資料，無法自行認領。如需取回請到「我的結果池」按「收回」。'}
                       onChange={() => toggleSelect(row.id)}
                     />
                   </td>

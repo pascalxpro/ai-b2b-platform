@@ -345,6 +345,8 @@ export default function HelpPage() {
             <Step n={4} title="認領">
               切到「商機池」勾選想接手的公司，按<strong>認領</strong>。
               認領成功後這筆會移入您的結果池、歸您所有，轉換狀態自動變成「已指派」。
+              自己釋放的資料在這裡會標示<strong>我釋放的</strong>且無法勾選——
+              要取回請回「我的結果池」按<strong>收回</strong>。
             </Step>
             <Step n={5} title="追蹤誰交給誰">
               列表的<strong>歸屬</strong>欄會顯示：在商機池看的是<strong>釋放者</strong>是誰；

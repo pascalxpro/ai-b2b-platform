@@ -38,12 +38,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (pool === 'opportunities') {
-      // The shared pool: released and not yet claimed. The user's own releases
-      // are excluded — the tab is "可認領" and claiming a row back off yourself
-      // is meaningless. They remain in the user's own pool marked 待認領, which
-      // is also where the withdraw action lives.
+      // The shared pool: everything released and not yet claimed, including
+      // the caller's own releases. Hiding your own contributions was tried and
+      // reverted — seeing the row appear here is how you confirm a release
+      // worked. They're marked in the UI and can't be selected for claiming;
+      // the pool route refuses them server-side as well.
       where.poolState = 'RELEASED';
-      where.NOT = { releasedByUserId: auth.id };
     } else {
       // The account's own pool. This filter is what makes results private —
       // previously every signed-in user received every row regardless of who
