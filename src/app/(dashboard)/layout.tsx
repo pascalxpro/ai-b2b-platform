@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import PageTransition from '@/components/ui/PageTransition';
+import { DEFAULT_BRANDING, type BrandingSettings } from '@/lib/settings/branding';
 
 export default function DashboardLayout({
   children,
@@ -18,6 +19,24 @@ export default function DashboardLayout({
   // <Link> that never called the logout endpoint — the session cookie was
   // never cleared. Both are fixed by giving TopBar the real session user.
   const [currentUser, setCurrentUser] = useState<{ name: string; email: string; isAdmin: boolean } | null>(null);
+  // The footer had the brand name hardcoded (and a frozen "2024"), so it kept
+  // showing stock text next to a customised sidebar.
+  const [branding, setBranding] = useState<BrandingSettings>(DEFAULT_BRANDING);
+
+  useEffect(() => {
+    fetch('/api/branding')
+      .then(r => (r.ok ? r.json() : null))
+      .then(b => {
+        if (!b) return;
+        const merged = { ...DEFAULT_BRANDING, ...b };
+        setBranding(merged);
+        // The tab title can't come from generateMetadata — these pages are
+        // statically prerendered, so that runs at build time when no database
+        // is reachable. Set it here instead, once branding has actually loaded.
+        document.title = `${merged.brandName} ${merged.subtitle}`.trim();
+      })
+      .catch(() => { /* cosmetic only */ });
+  }, []);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -113,7 +132,7 @@ export default function DashboardLayout({
           borderTop: '1px solid var(--color-border-subtle)',
           opacity: 0.6
         }}>
-          © 2024 AI B2B 商業情報平台 • Powered by AI
+          © {new Date().getFullYear()} {branding.brandName} {branding.subtitle} • Powered by AI
         </footer>
       </div>
 
