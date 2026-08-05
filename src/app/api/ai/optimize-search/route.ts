@@ -2,18 +2,24 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { loadSettingsFromDb } from '@/lib/settings/settingsService';
 import { requireAuth } from '@/lib/auth/guard';
-import { buildOptimizePrompt, parseOptimizeResponse } from '@/lib/ai/prompts';
+import { buildOptimizePrompt, parseOptimizeResponse, type OptimizedResult } from '@/lib/ai/prompts';
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
 
   try {
-    const { criteria, targetCountries } = await request.json();
+    const body = await request.json();
+    const { criteria } = body;
+    // A task targets one country. targetCountries is still accepted so an
+    // older client (or a saved payload) keeps working; only the first is used.
+    const targetCountry: string | undefined =
+      body.targetCountry || (Array.isArray(body.targetCountries) ? body.targetCountries[0] : undefined);
 
-    if (!criteria || !targetCountries || !Array.isArray(targetCountries)) {
-      return NextResponse.json({ error: 'Missing criteria or targetCountries' }, { status: 400 });
+    if (!criteria || !targetCountry) {
+      return NextResponse.json({ error: 'Missing criteria or targetCountry' }, { status: 400 });
     }
+    const targetCountries = [targetCountry];
 
     const settings = await loadSettingsFromDb();
     const { aiProvider, aiApiKey, aiModel, aiBaseUrl } = settings;
@@ -23,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { queryText = '', industries = [], companyTypes = [], keywords = [] } = criteria;
-    const optimized: Record<string, any> = {};
+    const optimized: Record<string, OptimizedResult> = {};
     // Remembers why the per-country calls failed, so a run where every country
     // failed can report the real cause rather than silently returning nothing.
     let lastError = '';
@@ -44,7 +50,9 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
-              temperature: 0.4,
+              // Matches the browser path: the prompt asks for four different
+              // angles, and a low temperature just rephrases the first.
+              temperature: 0.7,
               maxOutputTokens: 1500,
             },
           }),
@@ -72,7 +80,7 @@ export async function POST(request: NextRequest) {
             prompt,
             stream: false,
             options: {
-              temperature: 0.4,
+              temperature: 0.7,
               num_predict: 1500,
             }
           }),
@@ -93,7 +101,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             model: aiModel || 'local-model',
             messages: [{ role: 'user', content: prompt }],
-            temperature: 0.4,
+            temperature: 0.7,
             max_tokens: 1500,
           }),
         });

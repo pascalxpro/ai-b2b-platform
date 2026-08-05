@@ -7,7 +7,8 @@ import Portal from '@/components/ui/Portal';
 import BrowserKeyModal from '@/components/ai/BrowserKeyModal';
 import { callGemini, DEFAULT_GEMINI_MODEL } from '@/lib/ai/gemini';
 import { getBrowserGeminiKey, resolveModel } from '@/lib/ai/browserKey';
-import { buildTranslatePrompt, buildOptimizePrompt, parseOptimizeResponse } from '@/lib/ai/prompts';
+import { buildTranslatePrompt, buildOptimizePrompt, parseOptimizeResponse, type OptimizedResult } from '@/lib/ai/prompts';
+import { COUNTRIES, getCountry } from '@/lib/search/countries';
 import styles from './SearchCriteriaBuilder.module.css';
 
 // Simple inline TagInput since we need it self-contained
@@ -75,7 +76,13 @@ export default function SearchCriteriaBuilder({
   
   // State
   const [description, setDescription] = useState('');
-  const [countries, setCountries] = useState<string[]>([]);
+  // One country per task. Multi-country runs spent AI tokens per country and
+  // then merged everything into a single query that could only carry one
+  // country's geo bias anyway, so the extra countries cost money and made the
+  // results worse. Stored as an array because criteriaJson and the search
+  // service still speak that shape.
+  const [country, setCountry] = useState<string>('');
+  const countries = country ? [country] : [];
   const [industries, setIndustries] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [companyTypes, setCompanyTypes] = useState<string[]>([]);
@@ -90,7 +97,7 @@ export default function SearchCriteriaBuilder({
   const [searchError, setSearchError] = useState('');
 
   // AI Optimization preview state
-  type OptimizedData = { description: string; industries: string[]; companyTypes: string[]; keywords: string[]; langCode: string; langName: string };
+  type OptimizedData = OptimizedResult;
   const [showPreview, setShowPreview] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizedData, setOptimizedData] = useState<Record<string, OptimizedData>>({});
@@ -150,6 +157,11 @@ export default function SearchCriteriaBuilder({
     setIsTranslating(true);
     setTranslateError('');
     setTranslateResult('');
+    // Only pass the country when it actually speaks the language being
+    // translated into — it sharpens regional wording (a UK "stockist" vs a US
+    // "distributor"), but claiming the wrong region would be worse than none.
+    const translateCountry =
+      getCountry(country)?.langCode === translateLang ? country : undefined;
     try {
       if (browserMode) {
         // Same prompt builder the server route uses, so both modes behave alike.
@@ -158,7 +170,7 @@ export default function SearchCriteriaBuilder({
           // The user's own model choice wins over the team default, because in
           // browser mode the request is billed against their own quota.
           resolveModel(aiModel),
-          buildTranslatePrompt(translateInput, translateLang),
+          buildTranslatePrompt(translateInput, translateLang, translateCountry),
           { temperature: 0.3, maxOutputTokens: 500 }
         );
         setTranslateResult(text);
@@ -166,7 +178,7 @@ export default function SearchCriteriaBuilder({
         const res = await fetch('/api/ai/translate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: translateInput, targetLang: translateLang }),
+          body: JSON.stringify({ text: translateInput, targetLang: translateLang, country: translateCountry }),
         });
         const data = await res.json();
         if (res.ok && data.translatedText) {
@@ -207,7 +219,9 @@ export default function SearchCriteriaBuilder({
 
     const crit = item.criteriaJson || {};
     setDescription(crit.queryText || item.name || '');
-    setCountries(crit.countries || []);
+    // Saved searches predating the single-country rule may hold several;
+    // take the first rather than silently dropping the whole field.
+    setCountry(crit.countries?.[0] || '');
     setIndustries(crit.industries || []);
     setKeywords(crit.keywords || []);
     setCompanyTypes(crit.companyTypes || []);
@@ -323,68 +337,54 @@ export default function SearchCriteriaBuilder({
   };
 
   const handleSubmit = async () => {
-    // If countries selected, optimize first
-    if (countries.length > 0) {
+    // A country is what makes optimization meaningful — it selects the
+    // language and the local trade vocabulary. Without one, search directly.
+    if (country) {
       if (needsOwnKey) { setShowKeyModal(true); return; }
 
       setIsOptimizing(true);
       setOptimizeError('');
       setShowPreview(true);
       try {
+        const criteria = { queryText: description, industries, companyTypes, keywords };
+        let result: OptimizedData | null = null;
+
         if (browserMode) {
-          const key = getBrowserGeminiKey();
-          const model = resolveModel(aiModel);
-          const criteria = { queryText: description, industries, companyTypes, keywords };
-          const collected: Record<string, OptimizedData> = {};
-          let lastError = '';
-
-          // One request per country, mirroring the server route. Sequential on
-          // purpose: the free tier allows 15 requests/minute, and firing a
-          // whole multi-country batch in parallel invites a 429.
-          for (const country of countries) {
-            try {
-              const raw = await callGemini(key, model, buildOptimizePrompt(criteria, country), {
-                temperature: 0.4,
-                maxOutputTokens: 1500,
-              });
-              collected[country] = parseOptimizeResponse(raw, country);
-            } catch (e: any) {
-              console.error(`[AI] Optimize failed for ${country}:`, e);
-              lastError = e.message || String(e);
-            }
-          }
-
-          if (Object.keys(collected).length === 0) {
-            setOptimizeError(lastError || 'AI 優化失敗：未取得任何結果');
-          } else {
-            setOptimizedData(collected);
-            setPreviewTab(Object.keys(collected)[0]);
-          }
+          const raw = await callGemini(
+            getBrowserGeminiKey(),
+            resolveModel(aiModel),
+            buildOptimizePrompt(criteria, country),
+            // 0.7, not 0.4: the job is to produce four genuinely different
+            // angles on the same goal, and a low temperature just rephrases
+            // the first one.
+            { temperature: 0.7, maxOutputTokens: 1500 },
+          );
+          result = parseOptimizeResponse(raw, country);
         } else {
           const res = await fetch('/api/ai/optimize-search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              criteria: { queryText: description, countries, industries, companyTypes, keywords },
-              targetCountries: countries,
-            }),
+            body: JSON.stringify({ criteria, targetCountry: country }),
           });
           const data = await res.json();
-          if (res.ok && data.optimized) {
-            setOptimizedData(data.optimized);
-            setPreviewTab(countries[0]);
-          } else {
-            setOptimizeError(data.error || '優化失敗');
-          }
+          if (!res.ok) throw new Error(data.error || '優化失敗');
+          result = data.optimized?.[country] || null;
+        }
+
+        if (!result) {
+          setOptimizeError('AI 優化失敗：未取得任何結果');
+        } else {
+          setOptimizedData({ [country]: result });
+          setPreviewTab(country);
         }
       } catch (e: any) {
-        setOptimizeError(e.message);
+        console.error('[AI] Optimize failed:', e);
+        setOptimizeError(e.message || String(e));
       } finally {
         setIsOptimizing(false);
       }
       return;
     }
-    // No countries — search directly
     await executeSearch();
   };
 
@@ -432,14 +432,24 @@ export default function SearchCriteriaBuilder({
     executeSearch(optimizedData);
   };
 
+  /** Comma-separated tag fields (industries, keywords, excludeTerms, …). */
   const updateOptimizedField = (country: string, field: keyof OptimizedData, value: string) => {
     setOptimizedData(prev => ({
       ...prev,
       [country]: {
         ...prev[country],
-        [field]: field === 'description' ? value : value.split(',').map(s => s.trim()).filter(Boolean),
+        [field]: value.split(',').map(s => s.trim()).filter(Boolean),
       },
     }));
+  };
+
+  /** One search query line. Blanking a line drops it from the run. */
+  const updateOptimizedQuery = (country: string, index: number, value: string) => {
+    setOptimizedData(prev => {
+      const queries = [...(prev[country]?.queries || [])];
+      queries[index] = value;
+      return { ...prev, [country]: { ...prev[country], queries } };
+    });
   };
 
   const handleSave = async () => {
@@ -485,7 +495,7 @@ export default function SearchCriteriaBuilder({
 
   const handleReset = () => {
     setDescription('');
-    setCountries([]);
+    setCountry('');
     setIndustries([]);
     setKeywords([]);
     setCompanyTypes([]);
@@ -630,14 +640,20 @@ export default function SearchCriteriaBuilder({
           <h3 className={styles.sectionTitle}>結構化篩選器</h3>
           <div className={styles.filtersGrid}>
             <div className={styles.filterGroup}>
-              <span className={styles.filterLabel}>目標國家</span>
-              <TagInput
-                tags={countries}
-                onAdd={tag => { setCountries([...countries, tag]); setShowEstimates(true); }}
-                onRemove={tag => { setCountries(countries.filter(t => t !== tag)); setShowEstimates(true); }}
-                placeholder="輸入國家並按 Enter"
-                suggestions={COUNTRY_SUGGESTIONS}
-              />
+              <span className={styles.filterLabel}>目標國家（單選）</span>
+              {/* A dropdown, not free text: the country name keys the language,
+                  TLD and geo-bias tables, and a typo used to fall through to a
+                  prompt that asked the model to translate "into 義大利". */}
+              <select
+                className={styles.selectField}
+                value={country}
+                onChange={e => { setCountry(e.target.value); setShowEstimates(true); }}
+              >
+                <option value="">不指定國家</option>
+                {COUNTRIES.map(c => (
+                  <option key={c.name} value={c.name}>{c.name}（{c.en}）</option>
+                ))}
+              </select>
             </div>
             <div className={styles.filterGroup}>
               <span className={styles.filterLabel}>產業別</span>
@@ -655,11 +671,11 @@ export default function SearchCriteriaBuilder({
           <div className={styles.quickChipsRow}>
             <span className={styles.suggestLabel}>🌍 快速選擇國家：</span>
             <div className={styles.suggestChips}>
-              {COUNTRY_SUGGESTIONS.filter(c => !countries.includes(c)).map(c => (
+              {COUNTRY_SUGGESTIONS.map(c => (
                 <button
                   key={c}
-                  className={styles.suggestChip}
-                  onClick={() => { setCountries([...countries, c]); setShowEstimates(true); }}
+                  className={`${styles.suggestChip} ${country === c ? styles.suggestChipActive : ''}`}
+                  onClick={() => { setCountry(country === c ? '' : c); setShowEstimates(true); }}
                 >
                   {c}
                 </button>
@@ -822,33 +838,43 @@ export default function SearchCriteriaBuilder({
                   <button className={styles.closeButton} onClick={() => setShowPreview(false)}><X size={20} /></button>
                 </div>
 
-                {/* Country Tabs */}
-                {Object.keys(optimizedData).length > 1 && (
-                  <div className={styles.previewTabs}>
-                    {Object.keys(optimizedData).map(c => (
-                      <button
-                        key={c}
-                        className={`${styles.previewTab} ${previewTab === c ? styles.previewTabActive : ''}`}
-                        onClick={() => setPreviewTab(c)}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
                 {/* Preview Fields */}
                 {optimizedData[previewTab] && (
                   <div>
+                    {/* The queries are the part that actually reaches the
+                        search engines — shown first, and one row each so a bad
+                        one can be fixed or emptied without touching the rest. */}
                     <div className={styles.previewField}>
-                      <div className={styles.previewFieldLabel}>搜尋描述</div>
+                      <div className={styles.previewFieldLabel}>
+                        搜尋語句（{optimizedData[previewTab].langName}）— 實際送出的查詢
+                      </div>
                       <div className={styles.previewOriginal}>原始：{description}</div>
-                      <input
-                        className={styles.previewInput}
-                        value={optimizedData[previewTab].description}
-                        onChange={e => updateOptimizedField(previewTab, 'description', e.target.value)}
-                      />
+                      {optimizedData[previewTab].queries.map((q, i) => (
+                        <input
+                          key={i}
+                          className={styles.previewInput}
+                          style={{ marginBottom: 6 }}
+                          value={q}
+                          onChange={e => updateOptimizedQuery(previewTab, i, e.target.value)}
+                        />
+                      ))}
+                      {optimizedData[previewTab].queries.length === 0 && (
+                        <div style={{ color: '#f59e0b', fontSize: '0.85rem' }}>
+                          AI 未產生搜尋語句，將改用原始條件搜尋。
+                        </div>
+                      )}
                     </div>
+
+                    {optimizedData[previewTab].excludeTerms?.length > 0 && (
+                      <div className={styles.previewField}>
+                        <div className={styles.previewFieldLabel}>排除詞（避開求人、購物商城、排行文章）</div>
+                        <input
+                          className={styles.previewInput}
+                          value={optimizedData[previewTab].excludeTerms.join(', ')}
+                          onChange={e => updateOptimizedField(previewTab, 'excludeTerms', e.target.value)}
+                        />
+                      </div>
+                    )}
 
                     {optimizedData[previewTab].industries?.length > 0 && (
                       <div className={styles.previewField}>

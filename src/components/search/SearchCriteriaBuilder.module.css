@@ -170,6 +170,21 @@
   color: var(--color-primary);
 }
 
+/* Only one country can be selected, so the chips act as radio buttons and the
+   chosen one has to look chosen — clicking it again clears the selection. */
+.suggestChipActive {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.suggestChipActive:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+
 .suggestChipIndustry {
   border-color: rgba(16, 185, 129, 0.3);
   background: rgba(16, 185, 129, 0.04);

@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   try {
-    const { text, targetLang } = await request.json();
+    const { text, targetLang, country } = await request.json();
 
     if (!text || !targetLang) {
       return NextResponse.json({ error: 'Missing text or targetLang' }, { status: 400 });
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     // Shared with the browser-side path so both modes send an identical prompt.
     const langName = LANG_MAP[targetLang] || targetLang;
-    const prompt = buildTranslatePrompt(text, targetLang);
+    const prompt = buildTranslatePrompt(text, targetLang, country);
 
     let translatedText = '';
 

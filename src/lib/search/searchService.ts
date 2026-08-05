@@ -10,6 +10,7 @@ import { searchWithSearxng } from './providers/searxngProvider';
 import { searchWithBraveApi } from './providers/braveApiProvider';
 import { enrichCandidates, type EnrichmentResult } from './enrichment';
 import { isoToCountryLabel } from './enrichment/phone';
+import { getCountry } from './countries';
 
 // Re-export for other modules
 export type { SearchProviderResult } from './providers/tavilyProvider';
@@ -321,105 +322,81 @@ export async function executeSearchTask(taskId: string) {
     const keywordsStr = Array.isArray(crit.keywords) ? crit.keywords.join(' ') : '';
     const companyTypesStr = Array.isArray(crit.companyTypes) ? crit.companyTypes.join(' ') : '';
 
-    // Country to TLD / English name mapping for geo-targeted search
-    const COUNTRY_INFO: Record<string, { tlds: string[]; en: string; lang: string }> = {
-      '日本': { tlds: ['.jp', '.co.jp'], en: 'Japan', lang: 'ja' },
-      '台灣': { tlds: ['.tw', '.com.tw'], en: 'Taiwan', lang: 'zh-TW' },
-      '美國': { tlds: ['.us'], en: 'USA', lang: 'en' },
-      '越南': { tlds: ['.vn'], en: 'Vietnam', lang: 'vi' },
-      '泰國': { tlds: ['.th', '.co.th'], en: 'Thailand', lang: 'th' },
-      '德國': { tlds: ['.de'], en: 'Germany', lang: 'de' },
-      '韓國': { tlds: ['.kr', '.co.kr'], en: 'Korea', lang: 'ko' },
-      '中國': { tlds: ['.cn', '.com.cn'], en: 'China', lang: 'zh-CN' },
-      '印尼': { tlds: ['.id', '.co.id'], en: 'Indonesia', lang: 'id' },
-      '馬來西亞': { tlds: ['.my', '.com.my'], en: 'Malaysia', lang: 'ms' },
-      '印度': { tlds: ['.in', '.co.in'], en: 'India', lang: 'en' },
-      '英國': { tlds: ['.uk', '.co.uk'], en: 'UK', lang: 'en' },
-      '法國': { tlds: ['.fr'], en: 'France', lang: 'fr' },
-      '義大利': { tlds: ['.it'], en: 'Italy', lang: 'it' },
-      '西班牙': { tlds: ['.es'], en: 'Spain', lang: 'es' },
-      '澳洲': { tlds: ['.au', '.com.au'], en: 'Australia', lang: 'en' },
-      '菲律賓': { tlds: ['.ph'], en: 'Philippines', lang: 'en' },
-      '新加坡': { tlds: ['.sg', '.com.sg'], en: 'Singapore', lang: 'en' },
-    };
-
-    // Collect TLDs for post-filtering and site: restriction
-    const targetTlds: string[] = [];
-    const countryEnNames: string[] = [];
-    for (const c of countries) {
-      const info = COUNTRY_INFO[c];
-      if (info) {
-        targetTlds.push(...info.tlds);
-        countryEnNames.push(info.en);
-      }
+    // A task targets exactly one country. Extra entries are ignored rather
+    // than merged: one query can only carry one gl/hl pair, and mixing
+    // countries into a single query was producing results for whichever
+    // market the engine happened to favour.
+    const country = countries[0];
+    const info = getCountry(country);
+    if (countries.length > 1) {
+      console.warn(`[SearchService] Task ${taskId} lists ${countries.length} countries; using "${country}" only.`);
     }
 
-    // Build search queries — use English country name + industry terms
-    // This produces much better geo-targeted results than Chinese-only queries
+    const targetTlds: string[] = info ? [...info.tlds] : [];
+    const enCountryStr = info?.en || '';
+
+    /**
+     * Queries the AI produced for this country, if the user ran (and confirmed)
+     * the optimization step. These are written in the target language and are
+     * the whole point of that step — before this they were stored and never
+     * read, so every search ran on the original Chinese.
+     */
+    const aiQueries: string[] = (() => {
+      const opt = crit.optimizedCriteria?.[country];
+      const list = Array.isArray(opt?.queries) ? opt.queries : [];
+      return list.filter((q: unknown): q is string => typeof q === 'string' && q.trim() !== '');
+    })();
+
+    // Terms the AI flagged as noise in this market (job boards, consumer
+    // marketplaces, round-up articles). Appended as Google-style negatives.
+    const excludeStr: string = (() => {
+      const opt = crit.optimizedCriteria?.[country];
+      const list = Array.isArray(opt?.excludeTerms) ? opt.excludeTerms : [];
+      return list
+        .filter((t: unknown): t is string => typeof t === 'string' && t.trim() !== '')
+        .slice(0, 6)                       // long negative lists start excluding real hits
+        .map((t: string) => `-${t.trim().replace(/\s+/g, '')}`)
+        .join(' ');
+    })();
+
+    // Fallback for a search run without optimization: the original behaviour,
+    // Chinese terms plus the English country name.
     const baseQuery = task.queryText || crit.queryText || '';
-    const enCountryStr = countryEnNames.join(' ');
+    const literalQuery = [baseQuery, enCountryStr, industriesStr, keywordsStr, companyTypesStr]
+      .filter(Boolean).join(' ').trim();
 
-    // Primary query: use English country name for better geo-targeting
-    const queryParts = [baseQuery, enCountryStr, industriesStr, keywordsStr, companyTypesStr].filter(Boolean);
-    const fullQuery = queryParts.join(' ').trim();
+    // One query per paid API call, so switching this on does not change API
+    // cost. The AI's first query is the strongest one by construction — it
+    // leads with the product term.
+    const fullQuery = [aiQueries[0] || literalQuery, excludeStr].filter(Boolean).join(' ');
 
-    // For scrapers: add site: TLD restriction (pick the main TLD per country)
-    const mainTlds = countries.map(c => COUNTRY_INFO[c]?.tlds[0]).filter(Boolean);
-    const siteRestriction = mainTlds.length === 1
-      ? `site:${mainTlds[0]}`
-      : mainTlds.length > 1
-        ? mainTlds.map(tld => `site:${tld}`).join(' OR ')
-        : '';
+    const siteRestriction = info ? `site:${info.tlds[0]}` : '';
 
-    // Geo query for scrapers — base query + site restriction
-    const geoQuery = siteRestriction
-      ? `${baseQuery} ${industriesStr} ${keywordsStr} ${companyTypesStr} ${siteRestriction}`.replace(/\s+/g, ' ').trim()
-      : fullQuery;
+    /**
+     * Scrapers are free, so they get every query the AI produced rather than
+     * just the first. This is where the extra angles (trade role, industry
+     * term, company-suffix) actually buy coverage.
+     */
+    const scraperQueries = (aiQueries.length > 0 ? aiQueries : [literalQuery])
+      .map(q => [q, excludeStr, siteRestriction].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
 
     const requestedCount = crit.targetCount || task.targetCount || 10;
 
-    // Short query for additional coverage
-    const shortQuery = [enCountryStr, keywordsStr || industriesStr,
-      companyTypesStr ? companyTypesStr.split(' ')[0] : '',
-    ].filter(Boolean).join(' ').trim() || fullQuery;
-    const geoShortQuery = siteRestriction
-      ? `${shortQuery} ${siteRestriction}`.trim()
-      : shortQuery;
-
-    console.log(`[SearchService] Task ${taskId} executing.`);
-    console.log(`[SearchService] Full query: "${fullQuery}"`);
-    console.log(`[SearchService] Geo query (scrapers): "${geoQuery}"`);
-    console.log(`[SearchService] Short query: "${shortQuery}"`);
+    console.log(`[SearchService] Task ${taskId} executing. Country: ${country || 'none'}`);
+    console.log(`[SearchService] AI queries: ${aiQueries.length > 0 ? JSON.stringify(aiQueries) : 'none (using literal criteria)'}`);
+    console.log(`[SearchService] API query: "${fullQuery}"`);
+    console.log(`[SearchService] Scraper queries: ${JSON.stringify(scraperQueries)}`);
     console.log(`[SearchService] Target TLDs: ${targetTlds.join(', ') || 'none'}`);
 
     // Build API engine parameters
     // NOTE: Tavily/Exa "include_domains" was previously fed bare TLD strings (e.g. "jp"),
     // which those APIs do not treat as a valid domain suffix filter — removed in favor of
     // the unified post-merge country-confidence filter below, which is verified to work.
-    // gl/hl — Google/Bing country+language codes, applied when exactly one country is targeted
-    // (a single API call can only carry one geo bias; multi-country runs need per-country
-    // calls, which is a larger structural change tracked separately)
-    const COUNTRY_GL: Record<string, { gl: string; hl: string }> = {
-      '日本': { gl: 'jp', hl: 'ja' },
-      '台灣': { gl: 'tw', hl: 'zh-TW' },
-      '美國': { gl: 'us', hl: 'en' },
-      '越南': { gl: 'vn', hl: 'vi' },
-      '泰國': { gl: 'th', hl: 'th' },
-      '德國': { gl: 'de', hl: 'de' },
-      '韓國': { gl: 'kr', hl: 'ko' },
-      '中國': { gl: 'cn', hl: 'zh-CN' },
-      '印尼': { gl: 'id', hl: 'id' },
-      '馬來西亞': { gl: 'my', hl: 'ms' },
-      '印度': { gl: 'in', hl: 'en' },
-      '英國': { gl: 'uk', hl: 'en' },
-      '法國': { gl: 'fr', hl: 'fr' },
-      '義大利': { gl: 'it', hl: 'it' },
-      '西班牙': { gl: 'es', hl: 'es' },
-      '澳洲': { gl: 'au', hl: 'en' },
-      '菲律賓': { gl: 'ph', hl: 'en' },
-      '新加坡': { gl: 'sg', hl: 'en' },
-    };
-    const primaryGeo: GeoParams | undefined = countries.length === 1 ? COUNTRY_GL[countries[0]] : undefined;
+    // gl/hl — Google/Bing country+language bias. Always applied now that a task
+    // targets a single country; it used to be skipped on multi-country runs
+    // because one call can only carry one geo bias.
+    const primaryGeo: GeoParams | undefined = info ? { gl: info.gl, hl: info.hl } : undefined;
     // Bing "mkt" market code (e.g. "ja-JP") — hl is already a full locale for some
     // languages (zh-TW/zh-CN), so avoid double-appending the country suffix in that case
     const bingMkt = primaryGeo
@@ -521,25 +498,24 @@ export async function executeSearchTask(taskId: string) {
           }
           break;
 
-        // Free scrapers (no API key needed)
+        // Free scrapers (no API key needed) — one pass per AI query. These cost
+        // nothing per call, so they run the full set of angles the optimizer
+        // produced rather than only the primary query the paid APIs get.
         case 'yahoo':
-          providerPromises.push({ name, promise: searchYahoo(geoQuery, requestedCount, primaryGeo).catch(() => []) });
-          if (geoShortQuery !== geoQuery) {
-            providerPromises.push({ name, promise: searchYahoo(geoShortQuery, requestedCount, primaryGeo).catch(() => []) });
+          for (const q of scraperQueries) {
+            providerPromises.push({ name, promise: searchYahoo(q, requestedCount, primaryGeo).catch(() => []) });
           }
           break;
 
         case 'duckduckgo':
-          providerPromises.push({ name, promise: searchDDG(geoQuery, requestedCount, primaryGeo).catch(() => []) });
-          if (geoShortQuery !== geoQuery) {
-            providerPromises.push({ name, promise: searchDDG(geoShortQuery, requestedCount, primaryGeo).catch(() => []) });
+          for (const q of scraperQueries) {
+            providerPromises.push({ name, promise: searchDDG(q, requestedCount, primaryGeo).catch(() => []) });
           }
           break;
 
         case 'bing_scraper':
-          providerPromises.push({ name, promise: searchBing(geoQuery, requestedCount, primaryGeo).catch(() => []) });
-          if (geoShortQuery !== geoQuery) {
-            providerPromises.push({ name, promise: searchBing(geoShortQuery, requestedCount, primaryGeo).catch(() => []) });
+          for (const q of scraperQueries) {
+            providerPromises.push({ name, promise: searchBing(q, requestedCount, primaryGeo).catch(() => []) });
           }
           break;
       }
