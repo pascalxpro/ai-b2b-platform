@@ -170,13 +170,26 @@
 }
 
 .active {
-  background: hsla(var(--hue-primary), 50%, 55%, 0.12);
-  color: var(--color-primary);
-  border-color: hsla(var(--hue-primary), 60%, 55%, 0.15);
+  /* Warm tint + amber text: --color-primary was an indigo on a dark sidebar,
+     which read as barely distinguishable from the inactive items. */
+  background: rgba(251, 191, 36, 0.13);
+  color: var(--color-sidebar-active);
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+/* Weight as a second, non-colour cue, so the active item is still identifiable
+   for anyone who can't separate the two colours. */
+.active .label {
+  font-weight: var(--fw-semibold);
+}
+
+.active .icon {
+  color: var(--color-sidebar-active);
 }
 
 .active:hover {
-  background: hsla(var(--hue-primary), 50%, 55%, 0.18);
+  background: rgba(251, 191, 36, 0.2);
+  color: var(--color-sidebar-active);
 }
 
 .activeStrip {
@@ -186,9 +199,9 @@
   transform: translateY(-50%);
   width: 3px;
   height: 55%;
-  background: linear-gradient(180deg, var(--color-primary), hsl(var(--hue-accent), 70%, 55%));
+  background: var(--color-sidebar-active);
   border-radius: 0 4px 4px 0;
-  box-shadow: 0 0 12px var(--color-primary-glow), 0 0 4px var(--color-primary-glow);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.55);
 }
 
 .divider {

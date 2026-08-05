@@ -35,6 +35,12 @@
   --color-sidebar: hsla(var(--hue-primary), 30%, 18%, 0.85);
   --color-sidebar-text: rgba(255, 255, 255, 0.85);
   --color-sidebar-text-muted: rgba(255, 255, 255, 0.5);
+  /* The active nav item used --color-primary, an indigo around 55% lightness,
+     against a sidebar that is dark (18% lightness) in every theme — too little
+     contrast to pick out at a glance. Amber is a deliberate exception to the
+     themed palette: the sidebar is always dark, so a warm high-luminance
+     accent reads clearly regardless of the chosen hue. */
+  --color-sidebar-active: #fbbf24;
   --color-topbar: rgba(255, 255, 255, 0.6);
 
   /* ---- Borders ---- */
@@ -155,6 +161,8 @@
   --color-sidebar: hsla(var(--hue-primary), 35%, 8%, 0.88);
   --color-sidebar-text: rgba(255, 255, 255, 0.9);
   --color-sidebar-text-muted: rgba(255, 255, 255, 0.45);
+  /* Slightly brighter than the light theme's: this sidebar is darker (8%). */
+  --color-sidebar-active: #fcd34d;
   --color-topbar: hsla(var(--hue-primary), 25%, 10%, 0.7);
 
   /* Borders - subtle glow in dark mode */
@@ -194,6 +202,7 @@
   --color-sidebar: hsla(var(--hue-primary), 30%, 18%, 0.92);
   --color-sidebar-text: rgba(255, 255, 255, 0.9);
   --color-sidebar-text-muted: rgba(255, 255, 255, 0.5);
+  --color-sidebar-active: #fbbf24;
   --color-topbar: rgba(255, 255, 255, 0.7);
 
   /* Borders - DARK lines on light bg (not white-on-white!) */
