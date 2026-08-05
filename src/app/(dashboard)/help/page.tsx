@@ -6,6 +6,7 @@ import Breadcrumb from '@/components/ui/Breadcrumb';
 import {
   LoginDiagram, AccountMenuDiagram, SearchCenterDiagram,
   BuilderDiagram, ResultsPoolDiagram, ConfidenceDiagram,
+  OpportunityPoolDiagram,
 } from './diagrams';
 import styles from './page.module.css';
 
@@ -246,7 +247,8 @@ export default function HelpPage() {
               <strong>👁 檢視</strong>會開啟右側詳細面板，可補充 Email、電話、備註。
             </Step>
             <Step n={7} title="批次操作">
-              勾選多筆後，畫面底部會浮出批次列，可一次標記有效／無效或加入收藏。
+              勾選多筆後，畫面底部會浮出批次列，可一次標記有效／無效、加入收藏，
+              或<strong>釋放到商機池</strong>供同事認領（見下方第五節）。
             </Step>
           </ol>
 
@@ -315,6 +317,50 @@ export default function HelpPage() {
               篩選到只剩「有效」後按「匯出」，得到乾淨的 CSV 名單。
             </Step>
           </ol>
+
+          <h2 className={styles.h2}>五、我的結果池與商機池（多帳號協作）</h2>
+          <p className={styles.lead}>
+            結果池的資料<strong>各帳號自行管理，不共享</strong>——您只會看到自己搜尋出來的公司。
+            若想把某些名單交給同事跟進，可以「釋放」到商機池，由其他帳號認領。
+          </p>
+
+          <Figure caption="圖 7：釋放與認領的流程，以及系統保留的追蹤資訊">
+            <OpportunityPoolDiagram />
+          </Figure>
+
+          <ol className={styles.steps}>
+            <Step n={1} title="切換檢視">
+              結果池頁面上方有兩個分頁：<strong>我的結果池</strong>（自己的資料）與
+              <strong>商機池（可認領）</strong>（同事釋放出來、開放認領的資料）。
+            </Step>
+            <Step n={2} title="釋放到商機池">
+              在「我的結果池」勾選要交出去的資料，底部批次列按
+              <strong>釋放到商機池</strong>。釋放後該筆會標示為<strong>待認領</strong>，
+              所有帳號都看得到，但編輯權仍在您手上。
+            </Step>
+            <Step n={3} title="收回">
+              只要還沒被認領，隨時可以在「我的結果池」勾選後按<strong>收回</strong>，
+              資料就會退回私有狀態，其他人看不到。
+            </Step>
+            <Step n={4} title="認領">
+              切到「商機池」勾選想接手的公司，按<strong>認領</strong>。
+              認領成功後這筆會移入您的結果池、歸您所有，轉換狀態自動變成「已指派」。
+            </Step>
+            <Step n={5} title="追蹤誰交給誰">
+              列表的<strong>歸屬</strong>欄會顯示：在商機池看的是<strong>釋放者</strong>是誰；
+              在自己的結果池看的是「待認領」、「已由 ○○ 認領」或「認領自 ○○」。
+            </Step>
+          </ol>
+
+          <Note>
+            認領時系統會檢查您的結果池是否已有同一家公司（以網站網域比對）。
+            若已存在會略過並提示，避免同一家廠商在您手上出現兩筆。
+          </Note>
+
+          <Note type="warn">
+            同一筆商機若兩個人同時按「認領」，只有先到的一位會成功，
+            另一位會看到「已被其他人先行認領」。這是刻意的設計，避免兩個業務同時接觸同一家客戶。
+          </Note>
         </div>
       )}
     </div>

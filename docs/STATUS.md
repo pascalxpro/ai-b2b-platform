@@ -26,6 +26,15 @@
 - [ ] **驗證使用者建立/編輯**(commit `716c6f2`)
       本機無資料庫,未做端對端測試。
 
+- [ ] **對資料庫套用結果歸屬的 schema 變更**(commit `1b78823`)
+      `SearchResult` 新增了 `ownerUserId` / `poolState` / `releasedByUserId` /
+      `claimedByUserId` 等欄位。部署後需執行 `npx prisma db push`。
+      既有資料的擁有者會在第一次讀取結果池時,由該筆所屬搜尋任務的建立者自動回填。
+
+- [ ] **用兩個帳號實測釋放/認領**(commit `354711c`)
+      A 帳號釋放 → B 帳號在商機池看到並認領 → 確認該筆從 A 的結果池消失、
+      出現在 B 的結果池,且雙方都看得到釋放者/認領者。
+
 ---
 
 ## 二、關鍵背景:Gemini 為何走瀏覽器端
@@ -67,6 +76,17 @@
 很多在地廠商為了國際化也用 `.com`。系統標為「未驗證」交由人工複核,
 **不會直接丟棄**。
 
+### 結果各帳號私有,共享要「明確釋放」而非預設開放
+結果池不做共享資料表。每筆結果有 `ownerUserId`,預設只有擁有者看得到;
+要交給別人必須主動釋放到商機池。**可見性與可修改性是兩回事**——釋放後大家都
+看得到,但編輯權仍只屬於擁有者(`visibilityFilter` 與 `mutabilityFilter`,
+定義在 `src/lib/search/ownership.ts`)。
+
+### 認領用「條件式 updateMany」而非先讀再寫
+`where` 裡再檢查一次 `poolState: 'RELEASED'`,所以兩人同時認領時只有一筆會
+match,另一筆 count 為 0 並回報「已被先行認領」。不要改成 findFirst 後 update,
+那會有 race condition,結果是兩個業務同時接觸同一家客戶。
+
 ### `detectCountry()` 絕不 fallback 成「使用者搜尋的國家」
 這個 fallback 曾是「搜日本卻顯示台灣公司為日本」的直接原因。查不到就回 `null`。
 
@@ -74,8 +94,10 @@
 
 ## 四、已知未完成 / 刻意延後
 
-- **workspace 層級授權**:目前是「已登入就能讀」,尚未限制「只能讀自己
-  workspace 的資料」。認證(authentication)做完了,授權(authorization)還沒。
+- **workspace 層級授權**:搜尋結果已改為依帳號歸屬(commit `1b78823`),
+  但**其他模組**(客戶與商機、任務、會議、知識庫)仍是「已登入就能讀」。
+- **跨帳號去重**:認領時只比對「認領者自己的結果池是否已有同網域公司」。
+  全公司層級的 CanonicalCompany 去重刻意延後。
 - **本地模型優先順序**(LM Studio → Ollama → Gemini):已設計未實作。
   現有 `aiProvider` 是單選、`aiBaseUrl` 只有一個欄位,無法同時設定兩者。
   實測確認 HTTPS 頁面**可以**連 `http://localhost`(瀏覽器豁免 localhost 的

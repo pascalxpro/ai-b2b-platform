@@ -103,7 +103,11 @@ export async function POST(request: NextRequest) {
 
     for (const id of ids) {
       const candidate = await prisma.searchResult.findFirst({
-        where: { id, poolState: 'RELEASED' },
+        // Claiming your own release is a no-op with confusing side effects
+        // (it would stamp you as both releaser and claimer). The listing
+        // already hides these; this is the server-side guard, since ids come
+        // from the client.
+        where: { id, poolState: 'RELEASED', NOT: { releasedByUserId: auth.id } },
         select: { id: true, companyName: true, website: true },
       });
       if (!candidate) { lost++; continue; }
@@ -124,7 +128,7 @@ export async function POST(request: NextRequest) {
       // inside the WHERE, so if two people claim the same row at the same
       // moment exactly one update matches and the other gets count 0.
       const taken = await prisma.searchResult.updateMany({
-        where: { id, poolState: 'RELEASED' },
+        where: { id, poolState: 'RELEASED', NOT: { releasedByUserId: auth.id } },
         data: {
           poolState: 'CLAIMED',
           ownerUserId: auth.id,

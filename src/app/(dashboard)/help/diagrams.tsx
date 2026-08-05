@@ -385,3 +385,70 @@ export function ConfidenceDiagram() {
     </Frame>
   );
 }
+
+// ─── Opportunity pool (multi-account) ───
+export function OpportunityPoolDiagram() {
+  return (
+    <Frame viewBox="0 0 560 290">
+      <title>結果池與商機池之間的釋放與認領流程</title>
+      <defs>
+        <marker id="ah-rel" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill={C.warn} />
+        </marker>
+        <marker id="ah-clm" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill={C.ok} />
+        </marker>
+        <marker id="ah-wd" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 z" fill={C.muted} />
+        </marker>
+      </defs>
+
+      {/* Account A's private pool */}
+      <rect x="14" y="34" width="150" height="96" rx="10" fill={C.faint} stroke={C.line} />
+      <text x="89" y="56" textAnchor="middle" fontSize="10" fontWeight="700" fill={C.text}>A 帳號的結果池</text>
+      <text x="89" y="74" textAnchor="middle" fontSize="8" fill={C.muted}>只有 A 看得到</text>
+      <rect x="30" y="84" width="118" height="16" rx="4" fill="var(--color-surface)" stroke={C.line} />
+      <rect x="30" y="104" width="118" height="16" rx="4" fill="var(--color-surface)" stroke={C.line} />
+
+      {/* shared pool */}
+      <rect x="200" y="24" width="160" height="116" rx="10" fill="rgba(245,158,11,0.09)" stroke={C.warn} />
+      <text x="280" y="46" textAnchor="middle" fontSize="10" fontWeight="700" fill={C.warn}>商機池</text>
+      <text x="280" y="63" textAnchor="middle" fontSize="8" fill={C.muted}>所有帳號都看得到</text>
+      <rect x="216" y="74" width="128" height="18" rx="4" fill="var(--color-surface)" stroke={C.warn} />
+      <text x="280" y="87" textAnchor="middle" fontSize="8" fill={C.muted}>待認領・釋放者：A</text>
+      <text x="280" y="118" textAnchor="middle" fontSize="8" fill={C.muted}>可編輯權仍在 A 手上</text>
+
+      {/* Account B's private pool */}
+      <rect x="396" y="34" width="150" height="96" rx="10" fill={C.faint} stroke={C.line} />
+      <text x="471" y="56" textAnchor="middle" fontSize="10" fontWeight="700" fill={C.text}>B 帳號的結果池</text>
+      <text x="471" y="74" textAnchor="middle" fontSize="8" fill={C.muted}>認領後歸 B 所有</text>
+      <rect x="412" y="84" width="118" height="16" rx="4" fill="var(--color-surface)" stroke={C.ok} />
+      <text x="471" y="96" textAnchor="middle" fontSize="7" fill={C.muted}>認領自 A</text>
+
+      {/* release A → pool */}
+      <path d="M 166 68 L 196 68" stroke={C.warn} strokeWidth="1.6" markerEnd="url(#ah-rel)" />
+      <text x="181" y="60" textAnchor="middle" fontSize="8" fontWeight="600" fill={C.warn}>釋放</text>
+
+      {/* withdraw pool → A */}
+      <path d="M 196 106 L 166 106" stroke={C.muted} strokeWidth="1.4" strokeDasharray="3 3" markerEnd="url(#ah-wd)" />
+      <text x="181" y="122" textAnchor="middle" fontSize="8" fill={C.muted}>收回</text>
+
+      {/* claim pool → B */}
+      <path d="M 364 82 L 392 82" stroke={C.ok} strokeWidth="1.6" markerEnd="url(#ah-clm)" />
+      <text x="378" y="74" textAnchor="middle" fontSize="8" fontWeight="600" fill={C.ok}>認領</text>
+
+      {/* audit trail */}
+      <rect x="90" y="176" width="380" height="58" rx="10" fill={C.faint} stroke={C.line} />
+      <text x="280" y="197" textAnchor="middle" fontSize="10" fontWeight="600" fill={C.text}>每一筆都留下軌跡</text>
+      <text x="280" y="215" textAnchor="middle" fontSize="8" fill={C.muted}>釋放者：A　｜　釋放時間　｜　認領者：B　｜　認領時間</text>
+      <text x="280" y="229" textAnchor="middle" fontSize="8" fill={C.muted}>轉換狀態自動變成「已指派」，方便後續追蹤</text>
+
+      <text x="280" y="262" textAnchor="middle" fontSize="9" fill={C.danger}>
+        同一筆若兩人同時按「認領」，只有先到的一人會成功
+      </text>
+      <text x="280" y="278" textAnchor="middle" fontSize="8" fill={C.muted}>
+        另一人會看到「已被其他人先行認領」提示
+      </text>
+    </Frame>
+  );
+}

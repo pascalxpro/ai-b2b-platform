@@ -90,11 +90,12 @@ function OwnershipCell({
 }) {
   const name = (u: PoolUser) => (u?.id === myId ? '我' : u?.name || u?.email || '—');
 
+  // The shared pool never contains the viewer's own releases, so this is
+  // always a colleague.
   if (poolView === 'opportunities') {
-    const mine = row.releasedBy?.id === myId;
     return (
-      <span style={{ fontSize: '0.78rem', color: mine ? 'var(--color-text-muted)' : 'var(--color-text)' }}>
-        {name(row.releasedBy)}{mine ? '（自己釋放）' : ''}
+      <span style={{ fontSize: '0.78rem', color: 'var(--color-text)' }}>
+        {name(row.releasedBy)}
       </span>
     );
   }

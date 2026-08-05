@@ -32,6 +32,29 @@ export function visibilityFilter(user: SessionUser): Prisma.SearchResultWhereInp
 }
 
 /**
+ * What belongs in a user's OWN pool listing — narrower than visibilityFilter,
+ * which also lets through every row anyone has released.
+ *
+ * The two are deliberately different. visibilityFilter answers "may this user
+ * read this row at all", which has to include the shared pool so it can be
+ * browsed and claimed. Using it to build the private list as well put every
+ * colleague's released row into the tab labelled "只有您自己的搜尋結果".
+ *
+ * Rows the user released stay in their own list: while unclaimed the user is
+ * still the owner and may withdraw them, and after a claim they're what the
+ * "已由 ○○ 認領" tracking line is rendered from.
+ */
+export function ownedPoolFilter(user: SessionUser): Prisma.SearchResultWhereInput {
+  if (user.isAdmin) return {};
+  return {
+    OR: [
+      { ownerUserId: user.id },
+      { releasedByUserId: user.id },
+    ],
+  };
+}
+
+/**
  * What a given user is allowed to MODIFY — narrower than what they can see.
  * A released row is visible to everyone but must not be editable by everyone;
  * only its owner (or an admin) may change it.
