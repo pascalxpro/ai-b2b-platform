@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Eye, Edit2, Save, X, Undo2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { Eye, Edit2, Save, X, Undo2, Trash2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import ResultsToolbar from '@/components/search/ResultsToolbar';
 import BatchActionBar from '@/components/search/BatchActionBar';
 import ResultDetailDrawer from '@/components/search/ResultDetailDrawer';
@@ -426,6 +426,59 @@ function SearchResultsContent() {
     }
   };
 
+  /**
+   * Permanent deletion. Takes explicit ids so the row button and the batch bar
+   * share one path, same as runPoolAction.
+   *
+   * The confirmation names what is going and calls out released rows
+   * separately — deleting one yanks it out of the shared pool while a
+   * colleague may be looking at it, which is worth knowing before confirming.
+   */
+  const deleteResults = async (explicitIds?: string[]) => {
+    const ids = explicitIds ?? Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    const rows = results.filter(r => ids.includes(r.id));
+    const releasedCount = rows.filter(r => r.poolState === 'RELEASED').length;
+    const preview = rows.slice(0, 5).map(r => `　・${r.name || r.website}`).join('\n');
+
+    const message = [
+      `確定要永久刪除 ${ids.length} 筆資料？此操作無法復原。`,
+      '',
+      preview,
+      rows.length > 5 ? `　…以及其他 ${rows.length - 5} 筆` : '',
+      releasedCount > 0 ? `\n⚠ 其中 ${releasedCount} 筆已釋放到商機池，刪除後同事將無法認領。` : '',
+    ].filter(Boolean).join('\n');
+
+    if (!confirm(message)) return;
+
+    setBatchBusy(true);
+    try {
+      const res = await fetch('/api/search/results/batch', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      // Drop locally rather than refetching: deletion cannot partially change
+      // a row's visibility the way a claim can, so the server round-trip would
+      // only cost a spinner.
+      const gone = new Set(ids);
+      setResults(prev => prev.filter(r => !gone.has(r.id)));
+      setSelectedIds(new Set());
+      if (data.skipped > 0) {
+        alert(`已刪除 ${data.deleted} 筆。\n${data.skipped} 筆略過（非您擁有的資料）。`);
+      }
+    } catch (e: any) {
+      console.error('Delete failed:', e);
+      alert(`刪除失敗：\n${e.message}`);
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
   const handleFilterChange = (key: string, value: string) => {
     if (key === 'qualityStatus') {
       setActiveQualityFilter(value);
@@ -652,9 +705,10 @@ function SearchResultsContent() {
               {/* Ownership column: shows the releaser in the shared pool, and
                   the release/claim state in the account's own pool. */}
               <col style={{ width: 120 }} />
-              {/* 124, not 92: a released row carries a third action button
-                  (收回) and three 32px icon buttons plus gaps do not fit in 92. */}
-              <col style={{ width: 124 }} />
+              {/* Up to four 32px icon buttons (收回 / 編輯 / 檢視 / 刪除) with
+                  4px gaps = 140, plus the cell's 28px horizontal padding.
+                  Keep page.module.css .table min-width in step with this. */}
+              <col style={{ width: 168 }} />
             </colgroup>
             <thead>
               <tr>
@@ -815,6 +869,19 @@ function SearchResultsContent() {
                             <button className={styles.actionBtn} onClick={() => startEdit(row)} title="編輯"><Edit2 size={16} /></button>
                           )}
                           <button className={styles.actionBtn} onClick={() => setDetailData(row)} title="檢視"><Eye size={16} /></button>
+                          {/* Owner-only, like editing — the server rejects the
+                              rest, and a button that always 403s is worse than
+                              no button. */}
+                          {row.owner?.id === me?.id && (
+                            <button
+                              className={styles.actionBtn}
+                              onClick={() => deleteResults([row.id])}
+                              disabled={batchBusy}
+                              title="刪除此筆（無法復原）"
+                            >
+                              <Trash2 size={16} style={{ color: '#ef4444' }} />
+                            </button>
+                          )}
                         </>
                       )}
                     </div>
@@ -904,6 +971,7 @@ function SearchResultsContent() {
         onRelease={() => runPoolAction('release')}
         onWithdraw={() => runPoolAction('withdraw')}
         onClaim={() => runPoolAction('claim')}
+        onDelete={() => deleteResults()}
         onClearSelection={() => setSelectedIds(new Set())}
       />
 

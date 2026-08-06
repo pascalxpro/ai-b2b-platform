@@ -141,7 +141,7 @@
    * Must stay above the sum of the fixed <colgroup> widths, plus room for the
    * one flexible column (company name).
    *
-   *   44 + 140 + 110 + 110 + 120 + 130 + 90 + 120 + 124 = 988
+   *   44 + 140 + 110 + 110 + 120 + 130 + 90 + 120 + 168 = 1032
    *   + 220 for the name column
    *
    * When this was 980 — set before the 歸屬 column and the wider 操作 column
@@ -149,7 +149,7 @@
    * zero, and its header rendered on top of 國家 at narrow viewports.
    * Whenever a column is added or resized, update this number too.
    */
-  min-width: 1208px;
+  min-width: 1252px;
 }
 
 .th {

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Check, X, Star, XCircle, Share2, Undo2, HandCoins } from 'lucide-react';
+import { Check, X, Star, XCircle, Share2, Undo2, HandCoins, Trash2 } from 'lucide-react';
 import Portal from '@/components/ui/Portal';
 import styles from './BatchActionBar.module.css';
 
@@ -22,6 +22,7 @@ interface BatchActionBarProps {
   onRelease?: () => void;
   onWithdraw?: () => void;
   onClaim?: () => void;
+  onDelete?: () => void;
 }
 
 export default function BatchActionBar({
@@ -35,6 +36,7 @@ export default function BatchActionBar({
   onRelease,
   onWithdraw,
   onClaim,
+  onDelete,
 }: BatchActionBarProps) {
   if (selectedCount === 0) return null;
 
@@ -109,6 +111,20 @@ export default function BatchActionBar({
               >
                 <Undo2 size={16} />
                 收回
+              </button>
+            )}
+
+            {/* Last in the row, and the only outlined-red action, so it is not
+                sitting next to 標記無效 where a mis-click is cheap. */}
+            {onDelete && (
+              <button
+                className={`${styles.btn} ${styles.btnDelete}`}
+                onClick={onDelete}
+                disabled={busy}
+                title="永久刪除選取的資料，無法復原"
+              >
+                <Trash2 size={16} />
+                刪除
               </button>
             )}
           </>

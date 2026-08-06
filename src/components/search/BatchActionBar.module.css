@@ -107,6 +107,17 @@
   background: rgba(245, 158, 11, 0.12);
 }
 
+/* Solid-bordered red, distinct from .btnDanger (標記無效) which is only a
+   reversible status change. This one cannot be undone. */
+.btnDelete {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+.btnDelete:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
 .btnPrimary {
   background: var(--color-primary);
   color: white;

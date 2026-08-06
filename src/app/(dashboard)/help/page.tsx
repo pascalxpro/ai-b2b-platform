@@ -244,11 +244,12 @@ export default function HelpPage() {
             </Step>
             <Step n={6} title="單筆操作">
               <strong>✎ 編輯</strong>可直接修改公司名稱、國家、產業、類型；
-              <strong>👁 檢視</strong>會開啟右側詳細面板，可補充 Email、電話、備註。
+              <strong>👁 檢視</strong>會開啟右側詳細面板，可補充 Email、電話、備註；
+              <strong>🗑 刪除</strong>會永久移除該筆資料。編輯與刪除只出現在您擁有的資料上。
             </Step>
             <Step n={7} title="批次操作">
-              勾選多筆後，畫面底部會浮出批次列，可一次標記有效／無效、加入收藏，
-              或<strong>釋放到商機池</strong>供同事認領（見下方第五節）。
+              勾選多筆後，畫面底部會浮出批次列，可一次標記有效／無效、加入收藏、
+              <strong>釋放到商機池</strong>供同事認領（見下方第五節），或<strong>刪除</strong>。
             </Step>
           </ol>
 
@@ -293,6 +294,14 @@ export default function HelpPage() {
             <li>搜尋關鍵字是否出現在標題或描述中</li>
             <li>電話國碼是否確認為目標國家（額外加分）</li>
           </ul>
+
+          <Note type="warn">
+            <strong>刪除無法復原。</strong>只想把不相關的項目排除在名單外，用
+            <strong>標記無效</strong>就好——資料還在，用狀態篩選就看不到了。
+            刪除是給明顯無用的雜訊用的（例如搜食品容器卻抓到文具）。
+            已被同事認領的資料您無法刪除；已釋放但尚未被認領的可以刪除，
+            確認視窗會提醒您有幾筆會從商機池消失。
+          </Note>
 
           <Note type="warn">
             分數高低是<strong>相對參考</strong>，不代表商業價值。
